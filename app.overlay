@@ -1,0 +1,251 @@
+/*
+ * Copyright (c) 2022 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+
+
+/ {
+	aliases {
+		dg0 = &dig0;
+		dg1 = &dig1;
+		dg2 = &dig2;
+		adc = &adc;
+		in0 = &in0;
+		in1 = &in1;
+		i2c0 =&i2c0;
+	   };
+	};
+	
+
+
+/{
+
+    chosen {
+        nordic,nrf-adc = &adc;
+		nordic,nus-uart = &uart0;
+		
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+		zephyr,bt-mon-uart = &uart0;
+		zephyr,bt-c2h-uart = &uart0;
+
+		
+
+    };
+
+
+
+	output_digital {
+		compatible = "gpio-keys";
+		dig0: dig_0 {
+			label = "Motor 0";
+			
+		};
+		dig1: dig_1 {
+			label = "Digital Output 1";
+		
+	    };
+
+		dig2: dig_2 {
+			label = "Test 2";
+		
+	    };
+		
+	};
+
+	input_digital {
+		compatible = "gpio-keys";
+
+		in0: in0 {
+			label = "I2C SYNC - SCL LINE ";
+		};
+		
+		in1: in1 {
+			label = "TEST ";
+		};
+
+	};	
+		
+	
+};
+
+
+
+&pinctrl {
+    i2c0_default: i2c0_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SCL, 0, 9)>, <NRF_PSEL(TWIM_SDA, 0, 10)>;  // sda 0,10 scl 0,9
+        };
+    };
+};
+
+
+&i2c0 {
+	compatible = "nordic,nrf-twi";
+	status = "okay";
+	label="I2C_0"; 
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-1 = <&i2c0_sleep>;
+    pinctrl-names = "default","sleep";
+	clock-frequency = <I2C_BITRATE_FAST>; //maximum 400khz
+	mysensor:mysensor@44{
+		compatible = "i2c-device";
+        reg = < 0x44 >;
+        label = "MYSENSOR";
+    };
+
+	
+
+};
+
+
+ 
+&i2c0 {
+     display:ssd1306@3c {
+        compatible = "solomon,ssd1306fb";
+        reg = <0x3c>;
+        label = "SSD1306";
+        height = <32>;
+        width  = <128>;
+        segment-offset  = <0>;
+        page-offset     = <0>;
+        display-offset  = <0>;
+        multiplex-ratio = <31>;
+        prechargep      = <0xD1>;
+        segment-remap;
+        com-invdir;
+        com-sequential;
+        //reset-gpios = <&gpio1 15 (GPIO_ACTIVE_LOW)>;
+    };
+};
+
+
+&adc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+    io-channels = <&adc 0>, <&adc 1>;
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_AIN0>; 
+		zephyr,resolution = <14>;
+		zephyr,oversampling = <0>;
+
+	};
+
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_AIN1>; 
+		zephyr,resolution = <14>;
+		zephyr,oversampling = <0>;
+	};
+
+	
+
+
+};
+
+
+&dig0 {
+	gpios = <&gpio0 18 0>; // MOTOR    P0.15  - WRITE TEST OK
+};
+
+&dig1 {
+	gpios = <&gpio0 28 0>; //  CAP-RST  P0.03  - WRITE TEST OK
+};
+
+&dig2 {
+    gpios = <&gpio1 6 0>; // BUTTON-0 P0.05  - WRITE TEST OK
+};
+
+
+
+&in0 {
+	gpios = <&gpio0 13 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+};
+
+&in1 {
+	gpios = <&gpio0 19 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+};
+
+
+&uart0_default {
+
+    group2 {
+        psels = <NRF_PSEL(UART_RX, 1, 4)>, <NRF_PSEL(UART_TX, 1, 6)>;
+    };
+};
+
+/delete-node/ &{/pin-controller/uart0_sleep/group1/};
+
+
+&led0 {
+    gpios = <&gpio1 9 (GPIO_ACTIVE_LOW)>; //LED0     P1.09  WRITE TEST OK
+	label = "Red LED 0";
+};
+
+&i2c0_sleep {
+    group1 {
+        psels = <NRF_PSEL(TWIM_SDA, 0, 10)>, <NRF_PSEL(TWIM_SCL, 0, 9)>;
+    };
+};
+
+
+&button0 {
+	status = "disabled";
+};
+
+&button1 {
+	status = "disabled";
+};
+
+
+&button2 {
+	status = "disabled";
+};
+
+
+&button3 {
+	status = "disabled";
+};
+
+
+&adc {
+	status = "disabled";
+};
+
+
+&pwm0 {
+	status = "disabled";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&spi3 {
+	status = "disabled";
+};
+
+
+&dig0 {
+	status = "disabled";
+};
+
+
+&dig1 {
+	status = "disabled";
+};
+
+
+&dig2 {
+	status = "disabled";
+};
+/delete-node/ &{/pin-controller/uart0_default/group1/};

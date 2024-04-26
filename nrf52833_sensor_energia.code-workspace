@@ -1,0 +1,30 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "advanced_non_blocking_internal_timer",
+			"path": "../advanced_non_blocking_internal_timer"
+		}
+	],
+	"settings": {
+		"nrf-connect.toolchain.path": "${nrf-connect.toolchain:2.4.2}",
+		"nrf-connect.topdir": "${nrf-connect.sdk:2.4.2}",
+		"files.associations": {
+			"special.h": "c",
+			"stdlib.h": "c",
+			"string.h": "c",
+			"variables.h": "c",
+			"arm_math.h": "c",
+			"arm_math_types.h": "c",
+			"arm_math_memory.h": "c",
+			"complex_math_functions.h": "c",
+			"cmsis_core.h": "c",
+			"nrfx_saadc.h": "c",
+			"fast_math_functions.h": "c",
+			"filtering_functions.h": "c"
+		},
+		"nrf-connect.applications": []
+	}
+}
