@@ -14,7 +14,9 @@
 		adc = &adc;
 		in0 = &in0;
 		in1 = &in1;
-		i2c0 =&i2c0;
+		i2c0 =&i2c0;	
+		lora = &lora0;
+
 	   };
 	};
 	
@@ -100,7 +102,6 @@
 
 };
 
-
  
 &i2c0 {
      display:ssd1306@3c {
@@ -119,6 +120,8 @@
         com-sequential;
         //reset-gpios = <&gpio1 15 (GPIO_ACTIVE_LOW)>;
     };
+
+
 };
 
 
@@ -168,11 +171,11 @@
 
 
 &in0 {
-	gpios = <&gpio0 13 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+	gpios = <&gpio0 8 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
 };
 
 &in1 {
-	gpios = <&gpio0 19 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+	gpios = <&gpio0 0 6>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
 };
 
 
@@ -227,7 +230,7 @@
 };
 
 &spi1 {
-	status = "disabled";
+	status = "ok";
 };
 
 &spi3 {
@@ -273,4 +276,40 @@
 			   <19 0 &gpio0 23 0>,
 			   <20 0 &gpio0 26 0>,
 			   <21 0 &gpio0 27 0>;
+};
+
+&spi1 {
+    //VDD - CONNECT TO 3V - USE A 220UF TO GND
+    //SCK  -->P1.15
+	//MISO -->P1.14
+    //MOSI -->P1.13
+    cs-gpios = <&gpio0 3 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 3 ok
+    lora0: sx1276@0 {
+		        compatible = "semtech,sx1276";
+		        reset-gpios = <&gpio0 26 GPIO_ACTIVE_LOW>; //MODULE PIN 12
+		        dio-gpios = 
+                 <&gpio0 29 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 08 ok
+                 <&gpio0 24 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 35 ok
+                 
+		        power-amplifier-output = "pa-boost";
+		        reg = <0>;
+		        spi-max-frequency = <1000000>;
+		        label = "sx1276";
+          };
+
+};
+&spi1_default {
+	group1 {
+		psels = <NRF_PSEL(SPIM_SCK, 0, 31)>,  //MODULE PIN  9
+				<NRF_PSEL(SPIM_MOSI, 0, 30)>, //MODULE PIN 10
+				<NRF_PSEL(SPIM_MISO, 0, 13)>; //MODULE PIN 33
+	};
+};
+
+&clock {
+	status = "okay";
+};
+
+&acl {
+	status = "okay";
 };

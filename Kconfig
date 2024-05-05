@@ -40,4 +40,14 @@ config BT_NUS_UART_ASYNC_ADAPTER
 	  Enables asynchronous adapter for UART drives that supports only
 	  IRQ interface.
 
+
+config LORA_SX127X
+	bool "Semtech SX127x driver"
+	select HAS_SEMTECH_SX1272 if n
+	select HAS_SEMTECH_SX1276 if n
+	help
+	  Enable LoRa driver for Semtech SX1272 and SX1276.
+
+
 endmenu
+

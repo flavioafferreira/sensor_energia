@@ -94,7 +94,17 @@ PROGRAMMER PORT
 #define CAP_LIMIT_TEST  600 // WITHOUT USE THE CALIBRATION TEMPERATURE TABLE
 #define SECURITY_MARGIN  60
 
+//PRESENCE SENSOR - 
+#define INIT_TIME            10 //SECONDS TO START AFTER RESET
+#define SLIP_TIME_REACTIVATE 100 //SECONDS TO RECEIVE THE SECOND PULSE
+#define NUMBER_OF_SENSORS      6  //
 
+//SENSOR NUMBER
+#define SENSOR_DIG_0 0
+#define SENSOR_DIG_1 1
+#define SENSOR_DIG_2 2
+#define SENSOR_DIG_3 3
+#define SENSOR_DIG_4 4
 
 
 
@@ -104,6 +114,22 @@ PROGRAMMER PORT
 #define CMD_SEND_A 0x32
 #define CMD_SEND_B 0x33
 #define CMD_SEND_C 0x34
+
+
+
+//CALLBACK CMDS 0
+#define CMD_READ                0X52 //R
+#define CMD_WRITE               0X57 //W
+#define CMD_RESET               0X30 //0
+#define CMD_DEV_EUI             0X31 //1
+#define CMD_JOIN_EUI            0X32 //2
+#define CMD_APP_EUI             0X33 //3
+#define CMD_RESET_ALARM_FLAG    0X34 //4
+#define CMD_LED4_ON             0X35 //5
+#define CMD_LED4_OFF            0X36 //6
+#define CMD_ALARM_OFF           0X37 //7
+#define CMD_ALARM_ON            0X38 //8
+#define CMD_TEST                0X39 //9
 
 #define PUMP_ON_TIME   30 //SECONDS MINIMUM TIME AFTER TURN ON/OFF
 #define DELTA_TEMP  0.4
@@ -118,7 +144,7 @@ PROGRAMMER PORT
 #define NTC_2         1
 #define NTC_3         2
 
-#define CIRCULAR_BUFFER_ELEMENTS 1440
+#define CIRCULAR_BUFFER_ELEMENTS 10
 
 #define NUMBER_OF_NTC_SENSORS 2
 #define NUMBER_OF_ANALOG_SENSORS 2
@@ -151,29 +177,30 @@ PROGRAMMER PORT
 #define LOW_LIMIT_CURRENT 0.1 // 0.1A
 
 
+//LORAWAN
+#define DELAY K_MSEC(10000)
+#define DELAY_RTY K_MSEC(3000)
+#define RETRY 5
+#define LIMIT_RECONNECT_CNT    100  // IF THIS LIMIT REACHED, FORCE A RE-JOIN
+#define LORAWAN_INTERVAL_NORMAL 10  //INTERVAL BETWEEN UPLOADS IN MINUTES             - MINIMUM 3 MINUTES
+#define LORAWAN_INTERVAL_ALARM   3  //INTERVAL BETWEEN UPLOADS IN MINUTES AFTER ALARM - MINIMUM 3 MINUTES
+
+#define DOWNLINK_BUFF_SIZE 51
+#define DATA_SENT_JOIN_AGAIN 40 //AFTER HOW MANY INTERACTS MAKES A RE-JOIN
+#define LORAWAN_DEV_EUI_HELIUM  {0x60, 0x81, 0xF9, 0x07, 0x40, 0x35, 0x0D, 0x69} //msb
+#define LORAWAN_JOIN_EUI_HELIUM {0x60, 0x81, 0xF9, 0x82, 0xBD, 0x7F, 0x80, 0xD5} //msb
+#define LORAWAN_APP_KEY_HELIUM  {0xE0, 0x07, 0x38, 0x87, 0xAF, 0x4F, 0x16, 0x6E, 0x8E, 0x52, 0xD3, 0x27, 0x0F, 0x2E, 0x64, 0x6F}
+
+//#define LORAWAN_DEV_EUI_HELIUM  {0x60, 0x81, 0xF9, 0x07, 0x40, 0x35, 0x0D, 0x6A} //msb
+//#define LORAWAN_JOIN_EUI_HELIUM {0x60, 0x81, 0xF9, 0x82, 0xBD, 0x7F, 0x80, 0xD6} //msb
+//#define LORAWAN_APP_KEY_HELIUM  {0xE0, 0x07, 0x38, 0x87, 0xAF, 0x4F, 0x16, 0x6E, 0x8E, 0x52, 0xD3, 0x27, 0x0F, 0x2E, 0x64, 0x70}
 
 //DIGITAL INPUT TIMERS
 #define DIGITAL0_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 #define DIGITAL1_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 
-typedef struct _Analog_ { 
-    int32_t timestamp; 
-    int32_t value; 
-} Analog;
 
 
-typedef struct _Ntc_ { 
-    int32_t timestamp; 
-    int16_t value; 
-} Ntc;
-
-
-typedef struct _Circular_Buffer_ { 
-    uint16_t indice;
-    Ntc      ntc[NUMBER_OF_NTC_SENSORS];
-    Analog   analog[NUMBER_OF_ANALOG_SENSORS];
-
-} _Circular_Buffer;
 
 typedef struct _values_temp_ { 
     float value[NUMBER_OF_ANALOG_SENSORS]; 
@@ -217,3 +244,166 @@ typedef struct _time_stamp_ {
 } time_stamp;
 
 
+typedef enum _MessageType { 
+    MessageType_EVENTS = 0, 
+    MessageType_STATISTICS = 1, 
+    MessageType_HISTORY = 2 
+} MessageType;
+
+typedef enum _PhysicalDimension { 
+    PhysicalDimension_TIME = 0, 
+    PhysicalDimension_LENGTH = 1, 
+    PhysicalDimension_WEIGHT = 2, 
+    PhysicalDimension_TEMPERATURE = 3, 
+    PhysicalDimension_SPEED = 4, 
+    PhysicalDimension_AREA = 5, 
+    PhysicalDimension_VOLUME = 6, 
+    PhysicalDimension_ROTATION_SPEED = 7, 
+    PhysicalDimension_VOLTAGE = 8, 
+    PhysicalDimension_CURRENT = 9, 
+    PhysicalDimension_FREQUENCY = 10, 
+    PhysicalDimension_FORCE = 11 
+} PhysicalDimension;
+
+
+//STRUCTURE FOR HISTORY
+
+typedef struct _InputValue_ { 
+    int32_t timestamp; 
+    float value; 
+} InputValue_st;
+
+typedef struct _InputData_ { 
+    uint32_t input_id; /* Source ID table */
+    bool enable; 
+    bool has_label;
+    char label[20]; 
+    bool has_phy_dimension;
+    PhysicalDimension phy_dimension; 
+    InputValue_st values; // 800 fields 
+} InputData_st;
+
+typedef struct _Position_ { 
+    int32_t timestamp; 
+    float latitude; 
+    float longitude; 
+} Position_st;
+
+typedef struct _History_ { 
+    int32_t timestamp; 
+    Position_st positions; // 800 fields
+    InputValue_st device_internal_temperatures; // 800 fields 
+    InputData_st input_data[6]; /* one for each input */
+} History_st;
+
+
+typedef struct _UplinkMessage_ { 
+    MessageType type; 
+    uint8_t which_Data;
+    union {
+        History_st history;
+        //Statistics_st statistics;
+        //Events_st events;
+    } Data_st; 
+} UplinkMessage_st;
+
+// The structure for Circular Buffer is minor than structure for create
+// and send the Protobuf. The Protobuf requires different size of fields
+// Because of this, was created two different structures. 
+
+
+
+typedef struct _Gnss_ { 
+    int32_t timestamp; 
+    float latitude; 
+    float longitude;
+    uint8_t  gps_fixed; 
+    struct tm t;
+} Gnss;
+
+typedef struct _Analog_ { 
+    int32_t timestamp; 
+    int32_t value; 
+} Analog;
+
+typedef struct _Ntc_ { 
+    int32_t timestamp; 
+    int16_t value; 
+} Ntc;
+
+typedef struct _Digital_ { 
+    int32_t timestamp; 
+    int32_t value; 
+} Digital;
+
+//Circular Buffer Structure
+
+typedef struct _Circular_Buffer_ { 
+    uint16_t indice;
+    Gnss     gnss_module;
+    Analog   analog;
+    Ntc      ntc[3];
+    Digital  digital[2];
+} _Circular_Buffer;
+
+
+
+//Circular Buffer for Alarm System
+
+typedef struct _Alarm_ { 
+    int32_t timestamp; 
+    int8_t  id;
+    int8_t  event_code;
+    int32_t value;     
+} _Alarm;
+
+//Alarm C_Buffer_Alarm[ALARM_EVENT_QTY_MAX];
+//next position 
+
+
+
+
+
+
+//LORAWAN STRUCTURES
+
+//LORAWAN DOWNLINK FIFO
+//Port 2, Pending 1, RSSI -128dB, SNR -9dBm
+struct _Downlink_Fifo { 
+    void *fifo_reserved;
+    uint8_t port; 
+    int16_t rssi;
+    int8_t snr;
+    uint8_t data[DOWNLINK_BUFF_SIZE];
+    uint8_t len;     
+};
+
+struct _Downlink_ { 
+    uint8_t port; 
+    int16_t rssi;
+    int8_t snr;
+    uint8_t data[DOWNLINK_BUFF_SIZE];
+    uint8_t len;     
+};
+
+typedef struct _Setup_{ 
+    uint16_t led_blink_time;   //milliseconds  
+    uint16_t interval_uplink;  //minutes       2
+    uint8_t  output_port;      //ON-OFF        b7..b0 1    
+    uint16_t turn_angle[4];    //degrees    -180 <--> +180 
+    uint8_t  turn_speed[4];    //rpm = degrees/second   
+    uint8_t  dev [8];
+    uint8_t  join[8];
+    uint8_t  key [16];
+    uint8_t  nwk_key[16];
+    uint32_t dev_nonce;
+    uint8_t  joined;      //ON-OFF
+}_Setup;
+
+
+
+typedef struct _Sensor_Status_{
+    uint8_t number[NUMBER_OF_SENSORS];
+    uint8_t active[NUMBER_OF_SENSORS];
+    uint8_t busy[NUMBER_OF_SENSORS];
+}Sensor_Status_;

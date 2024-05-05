@@ -52,13 +52,94 @@
 
 #include "dsp/transform_functions.h"
 
+#include "includes/variables.h"
+
+
+//INIT_LORAWAN
+#include <zephyr/lorawan/lorawan.h>
+#include <zephyr/drivers/lora.h>
+#include <zephyr/random/rand32.h>
+
+//LORAWAN 
+uint8_t lorawan_reconnect=0;
+uint32_t data_sent_cnt=0;
+//void lorawan_thread(void);
+
+//ALARM
+Sensor_Status_ sensor_status;
+
+uint8_t lora_cycle_minute=0;
+static K_SEM_DEFINE(lorawan_tx, 0, 1); //uplink
+static K_SEM_DEFINE(lorawan_rx, 0, 1); //downlink
+static K_SEM_DEFINE(lorawan_init, 0, 1); //downlink
+extern _Setup Initial_Setup;
+
+#define DEFAULT_RADIO_NODE DT_NODELABEL(lora0)
+BUILD_ASSERT(DT_NODE_HAS_STATUS(DEFAULT_RADIO_NODE, okay), "No default LoRa radio specified in DT");
+#define DEFAULT_RADIO DT_LABEL(DEFAULT_RADIO_NODE)
+
+#define DELAY K_MSEC(10000)
+#define MAX_DATA_LEN 10
+char data_test[] =  { 0X00 , 0X01 ,
+                      0X00 , 0X02 , 
+					  0X00 , 0X00 , 0X00 , 0X01 ,
+					  0X00 , 0X00 , 0X00 , 0X01 };
+
+
+const struct device *lora_dev;
+struct lorawan_join_config join_cfg;
+
+uint8_t dev_eui[] = LORAWAN_DEV_EUI_HELIUM;
+uint8_t join_eui[] = LORAWAN_JOIN_EUI_HELIUM;
+uint8_t app_key[] = LORAWAN_APP_KEY_HELIUM;
+
+//LORAWAN DOWNLINK FIFO
+
+static K_FIFO_DEFINE(my_fifo_downlink);
+struct _Downlink_Fifo downlink_cmd;
+struct _Downlink_ downlink_cmd_new;
+
+// DOWNLINK CHOOSE FIRST AND PORT2
 
 
 
+static void dl_callback(uint8_t port, bool data_pending,int16_t rssi, int8_t snr, uint8_t len, const uint8_t *data)	{
+    
+ 
+    //printk("Port %d, Pending %d, RSSI %ddB, SNR %ddBm \n", port, data_pending, rssi, snr);
+    uint8_t i=0;
+    if (data) {
+        //printk(data, len, "Payload: \n");
+	    downlink_cmd_new.port=port;
+        downlink_cmd_new.rssi=rssi;
+		downlink_cmd_new.snr=snr;
+        downlink_cmd_new.len = len;
+        while (i < len) {
+            downlink_cmd_new.data[i] = data[i];
+            i++;
+        }
+		k_sem_give(&lorawan_rx);//downlink
+    }
 
+    
+}
 
+struct lorawan_downlink_cb downlink_cb = {
+	   .port = LW_RECV_PORT_ANY,
+	   .cb = dl_callback
+    };
 
+static void lorwan_datarate_changed(enum lorawan_datarate dr)
+{
+	uint8_t unused, max_size;
 
+	lorawan_get_payload_sizes(&unused, &max_size);
+	color(10);
+	printk("New Datarate: DR_%d, Max Payload %d \n", dr, max_size);
+	color(255);
+}
+
+//END_LORAWAN
 
 #define FFT_SIZE 2048 //was 2048
 /* -------------------------------------------------------------------
@@ -506,7 +587,6 @@ int filter(void){
 }
 
 
-
 void fft() {
     // Preencha input_buffer com os dados do sinal que você deseja analisar
   arm_status status;
@@ -529,14 +609,17 @@ float32_t inputArray[10] = {1.5, 2.0, 5.3, 3.1, 6.7, 4.2, 9.8, 1.0, 7.2, 8.5};
 
 int main(){
 
-
+  uint8_t counter=0;
   printk("Start - turn on the UART \n");
-  
+  k_msleep(2000);
+  printk("Start - turn on SX1276 \n");
+  k_sem_give(&lorawan_init);  //START HELIUM JOIN
 
    while (1)
     {
         k_msleep(1000);
-        //printk("Working...\n");
+        printk("Working...%d   \n",counter);
+        counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
 
@@ -705,4 +788,109 @@ void adc_thread(void)
     }
 }
 
-K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
+
+void downlink_thread(void){
+    uint8_t cmd=0;
+	while(1){
+	  k_sem_take(&lorawan_rx,K_FOREVER);
+      color(4);
+	  printk("CMD-Received\n");
+	  printk("Len: %d\n",downlink_cmd_new.len);
+	  printk("Port %d, RSSI %ddB, SNR %ddBm \n", downlink_cmd_new.port, downlink_cmd_new.rssi, downlink_cmd_new.snr);
+	  printk(downlink_cmd_new.data, downlink_cmd_new.len, "Payload: \n");
+
+	  printk("%X:%X:%X\n",downlink_cmd_new.data[0],downlink_cmd_new.data[1],downlink_cmd_new.data[2]);
+      static uint8_t *data=downlink_cmd_new.data;
+	  
+
+	  (void)cmd_interpreter(data,downlink_cmd_new.len);
+      color(0);
+	}
+    
+}
+
+void lorawan_thread(void)
+{
+	//THIS THREAD MUST HAVE MAXIMUM PRIORITY(-9) IN ORDER TO RECEIVE DOWNLINK CALL BACK
+    uint64_t i=0,j=0;
+	int ret;
+    uint32_t random;
+    uint32_t dev_nonce;
+    lora_dev = DEVICE_DT_GET(DT_NODELABEL(lora0));
+
+	//LoRaMacTestSetDutyCycleOn(0);//disable dutyCycle for test
+
+    k_sem_take(&lorawan_init, K_FOREVER);  // WAIT FOR INIT
+	color(10);
+    printk("LoraWan Thread Started\n\n");
+    color(255);
+	if (!device_is_ready(lora_dev)) {
+		printk("%s: device not ready.\n\n", lora_dev->name);
+		return;
+	}
+    lorawan_set_region(LORAWAN_REGION_EU868);
+	
+	lorawan_register_downlink_callback(&downlink_cb);
+	lorawan_register_dr_changed_callback(lorwan_datarate_changed);
+	lorawan_set_conf_msg_tries(20); //was 10
+    
+    while(1){
+     ret=-1;
+
+   	 while ( ret < 0 ) {
+    	    color(10);
+   	        printk("Joining network over OTAA\n\n");
+			color(255);
+            k_sleep(K_MSEC(3000));//was 1000
+            lorawan_start();
+			k_sleep(K_MSEC(2000));//was 500ms
+		    lorawan_enable_adr( true );
+   
+			join_cfg.mode = LORAWAN_CLASS_A; //was A
+			join_cfg.dev_eui = dev_eui;
+			join_cfg.otaa.join_eui = join_eui;
+			join_cfg.otaa.app_key = app_key;
+			join_cfg.otaa.nwk_key = app_key;
+            
+       
+       	    random = sys_rand32_get();
+     		dev_nonce = random & 0x0000FFFF;
+			join_cfg.otaa.dev_nonce = dev_nonce;
+		    ret = lorawan_join(&join_cfg);
+
+            
+			 if (ret<0){
+				 color(10);
+				 printk("Failed..Waiting some seconds to try join again\n\n");
+				 color(255);
+			     k_sleep(K_MSEC(53000));
+	         }
+			
+    
+      } 
+	  color(10);
+	  printk("Joined OTAA\n\n");
+	  color(255);
+	  Initial_Setup.joined=ON;
+      for(int i=0;i<=15;i++){Initial_Setup.nwk_key[i]=join_cfg.otaa.nwk_key[i];}
+      Initial_Setup.dev_nonce=join_cfg.otaa.dev_nonce;
+	  print_setup();
+
+	  	  
+	  lorawan_reconnect=0;
+
+      while (!lorawan_reconnect) {
+		//while (1) {
+	
+		  k_sem_take(&lorawan_tx, K_FOREVER);
+		  lorawan_tx_data();
+	    }
+    }
+}
+
+
+
+//K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -10, 0, 0);
+K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
+

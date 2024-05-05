@@ -1,0 +1,40 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"nrf-connect.toolchain.path": "${nrf-connect.toolchain:2.6.0}",
+		"nrf-connect.taskBindings": {
+			"flash": [
+				{
+					"taskName": "My custom flash1",
+					"buildConfigs": [
+						"c:\\Nordic\\inter_less1_exer1_solution\\build"
+					]
+				},
+				{
+					"taskName": "My custom flash1",
+					"buildConfigs": [
+						"${workspaceFolder}\\build"
+					]
+				}
+			],
+			"eraseAndFlash": [
+				{
+					"taskName": "My custom Eraseflash1",
+					"buildConfigs": [
+						"${workspaceFolder}\\build"
+					]
+				}
+			]
+		},
+		"nrf-connect.applications": [],
+		"nrf-connect.topdir": "${nrf-connect.sdk:2.4.2}",
+		"files.associations": {
+			"lora.h": "c",
+			"lorawan.h": "c"
+		}
+	}
+}

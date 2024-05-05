@@ -1,0 +1,24 @@
+ 
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "My custom flash1",
+            "type": "shell",
+            "command": "nrfjprog -f NRF52 --program ${workspaceFolder}/build/zephyr/zephyr.hex  --verify --reset",
+            "problemMatcher": []
+        },
+        {
+            "label": "My custom Eraseflash1",
+            "type": "shell",
+            "command": "nrfjprog -f NRF52 --eraseall ",
+            "problemMatcher": []
+        }
+        
+    ]
+  }
+
+//COMANDOS
+  // https://infocenter.nordicsemi.com/index.jsp?topic=%2Fug_nrf_cltools%2FUG%2Fcltools%2Fnrf_nrfjprogexe_return_codes.html&cp=9_1_3_1
+
+

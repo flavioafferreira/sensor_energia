@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
-set(NCS_BASE C:/Users/f.ferreira/v2.5.2)
+set(NCS_BASE C:/ncs/v2.6.0)
+
 
 cmake_minimum_required(VERSION 3.20.0)
 
