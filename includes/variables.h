@@ -199,7 +199,9 @@ PROGRAMMER PORT
 #define DIGITAL0_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 #define DIGITAL1_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 
-
+//LED
+#define LED_BLINK_FAST       30  //ms
+#define LED_BLINK_SLOW       500 //ms
 
 
 typedef struct _values_temp_ { 

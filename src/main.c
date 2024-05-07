@@ -1,3 +1,10 @@
+/*
+    toolchains v2.6.0
+    sdk v2.4.2
+    module SX1276
+*/
+
+
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/uart.h>
@@ -61,11 +68,9 @@
 //LORAWAN 
 uint8_t lorawan_reconnect=0;
 uint32_t data_sent_cnt=0;
-//void lorawan_thread(void);
-
 
 //LED AND INPUT
-
+uint16_t led_period=LED_BLINK_FAST;
 
 //DIGITAL OUTPUT --> MOTOR
 #define DIG_0_NODE DT_ALIAS(led0)
@@ -661,10 +666,10 @@ int main(){
    while (1)
     {
         led_on_off(led_status);
-        k_msleep(500);
+        k_msleep(led_period);
         led_status=!led_status;
         led_on_off(led_status);
-        k_msleep(500);
+        k_msleep(led_period);
         printk("Working...%d   \n",counter);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
@@ -917,6 +922,7 @@ void lorawan_thread(void)
       } 
 	  color(10);
 	  printk("Joined OTAA\n\n");
+      led_period=LED_BLINK_FAST;
 	  color(255);
 	  Initial_Setup.joined=ON;
       for(int i=0;i<=15;i++){Initial_Setup.nwk_key[i]=join_cfg.otaa.nwk_key[i];}
@@ -937,7 +943,7 @@ void lorawan_thread(void)
 
 
 
-//K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
+K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
 K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -1, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
 

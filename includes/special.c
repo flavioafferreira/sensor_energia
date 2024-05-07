@@ -74,6 +74,8 @@ static uint8_t font_width;
 static uint8_t font_height;
 #define SELECTED_FONT_INDEX  4  // perhaps make this a config parameter
 
+//LED
+extern uint16_t led_period;
 
 
 float BetaTermistor(void) {
@@ -377,7 +379,7 @@ void lorawan_tx_data(void){
             color(255);
             //lorawan_reconnect_cnt=0;
 		     }
-    if(data_sent_cnt>=DATA_SENT_JOIN_AGAIN){lorawan_reconnect=1;}
+    if(data_sent_cnt>=DATA_SENT_JOIN_AGAIN){lorawan_reconnect=1;led_period=LED_BLINK_SLOW;}
 
   
 

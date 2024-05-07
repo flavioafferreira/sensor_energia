@@ -290,13 +290,13 @@
 
 &spi1 {
     //VDD - CONNECT TO 3V - USE A 220UF TO GND
-     cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 3 ok
+     cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 30 ok
     lora0: sx1276@0 {
 		        compatible = "semtech,sx1276";
-		        reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>; //MODULE PIN 12
+		        reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>; //MODULE PIN 28
 		        dio-gpios = 
-                 <&gpio1 02 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 08 ok
-                 <&gpio1 04 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 35 ok
+                 <&gpio1 02 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 38 ok
+                 <&gpio1 04 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 40 ok
                  
 		        power-amplifier-output = "pa-boost";
 		        reg = <0>;
@@ -307,9 +307,9 @@
 };
 &spi1_default {
 	group1 {
-		psels = <NRF_PSEL(SPIM_SCK, 0, 20)>,  //MODULE PIN  9
-				<NRF_PSEL(SPIM_MOSI, 0, 22)>, //MODULE PIN 10
-				<NRF_PSEL(SPIM_MISO, 1, 00)>; //MODULE PIN 33
+		psels = <NRF_PSEL(SPIM_SCK, 0, 20)>,  //MODULE PIN 32
+				<NRF_PSEL(SPIM_MOSI, 0, 22)>, //MODULE PIN 34
+				<NRF_PSEL(SPIM_MISO, 1, 00)>; //MODULE PIN 36
 	};
 };
 
