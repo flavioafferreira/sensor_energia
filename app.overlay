@@ -182,7 +182,7 @@
 &uart0_default {
 
     group2 {
-        psels = <NRF_PSEL(UART_RX, 1, 4)>, <NRF_PSEL(UART_TX, 1, 6)>;
+        psels = <NRF_PSEL(UART_RX, 0, 5)>, <NRF_PSEL(UART_TX, 1, 9)>;
     };
 };
 
@@ -190,9 +190,19 @@
 
 
 &led0 {
-    gpios = <&gpio1 9 (GPIO_ACTIVE_LOW)>; //LED0     P1.09  WRITE TEST OK
-	label = "Red LED 0";
+    gpios = <&gpio1 6 (GPIO_ACTIVE_HIGH)>; //LED0     P1.09  WRITE TEST OK
+	label = "Blue LED 0";
 };
+
+
+&led1 {
+	status = "disabled";
+};
+
+&led2 {
+	status = "disabled";
+};
+
 
 &i2c0_sleep {
     group1 {
@@ -280,16 +290,13 @@
 
 &spi1 {
     //VDD - CONNECT TO 3V - USE A 220UF TO GND
-    //SCK  -->P1.15
-	//MISO -->P1.14
-    //MOSI -->P1.13
-    cs-gpios = <&gpio0 3 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 3 ok
+     cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 3 ok
     lora0: sx1276@0 {
 		        compatible = "semtech,sx1276";
-		        reset-gpios = <&gpio0 26 GPIO_ACTIVE_LOW>; //MODULE PIN 12
+		        reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>; //MODULE PIN 12
 		        dio-gpios = 
-                 <&gpio0 29 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 08 ok
-                 <&gpio0 24 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 35 ok
+                 <&gpio1 02 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 08 ok
+                 <&gpio1 04 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 35 ok
                  
 		        power-amplifier-output = "pa-boost";
 		        reg = <0>;
@@ -300,9 +307,9 @@
 };
 &spi1_default {
 	group1 {
-		psels = <NRF_PSEL(SPIM_SCK, 0, 31)>,  //MODULE PIN  9
-				<NRF_PSEL(SPIM_MOSI, 0, 30)>, //MODULE PIN 10
-				<NRF_PSEL(SPIM_MISO, 0, 13)>; //MODULE PIN 33
+		psels = <NRF_PSEL(SPIM_SCK, 0, 20)>,  //MODULE PIN  9
+				<NRF_PSEL(SPIM_MOSI, 0, 22)>, //MODULE PIN 10
+				<NRF_PSEL(SPIM_MISO, 1, 00)>; //MODULE PIN 33
 	};
 };
 

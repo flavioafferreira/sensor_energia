@@ -33,9 +33,7 @@
 
 #include <arm_math.h>
 
-//PORT 1.06 UART TX
-//PORT 1.04 UART RX
-//PORT 0.05 LED
+
 
 //#include <nrfx_example.h>
 //#include <saadc_examples_common.h>
@@ -64,6 +62,31 @@
 uint8_t lorawan_reconnect=0;
 uint32_t data_sent_cnt=0;
 //void lorawan_thread(void);
+
+
+//LED AND INPUT
+
+
+//DIGITAL OUTPUT --> MOTOR
+#define DIG_0_NODE DT_ALIAS(led0)
+static const struct gpio_dt_spec led_0 = GPIO_DT_SPEC_GET_OR(DIG_0_NODE, gpios, {0});
+#define DIG_OUT_0_ADR &led_0
+#define DIG_OUT_0      led_0
+
+//DIGITAL OUTPUT --> BUTTON0 -- INTERNAL CAPACITOR
+#define DIG_2_NODE DT_ALIAS(dg2)
+static const struct gpio_dt_spec digital_dig2 = GPIO_DT_SPEC_GET_OR(DIG_2_NODE, gpios, {0});
+#define DIG_OUT_2_ADR &digital_dig2
+#define DIG_OUT_2      digital_dig2
+
+//DIGITAL INPUT - BUTTON 0
+#define DIG_IN_0_NODE DT_ALIAS(in0)
+static const struct gpio_dt_spec digital_dig_in0 = GPIO_DT_SPEC_GET_OR(DIG_IN_0_NODE, gpios, {0});
+static struct gpio_callback digital_cb_data_dig_in0;
+#define DIG_0_ADR &digital_dig_in0
+#define DIG_0      digital_dig_in0
+#define DIG_0_CB  &digital_cb_data_dig_in0
+
 
 //ALARM
 Sensor_Status_ sensor_status;
@@ -140,6 +163,23 @@ static void lorwan_datarate_changed(enum lorawan_datarate dr)
 }
 
 //END_LORAWAN
+
+void configure_digital_outputs(void)
+{
+	gpio_pin_configure_dt(&led_0, GPIO_OUTPUT);
+	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_0.port->name, DIG_OUT_0.pin);
+    gpio_pin_set_dt(&led_0, OFF);
+
+}
+
+void led_on_off(uint8_t status)
+{
+   gpio_pin_set_dt(&led_0, status);
+	
+}
+
+
+
 
 #define FFT_SIZE 2048 //was 2048
 /* -------------------------------------------------------------------
@@ -608,16 +648,23 @@ float32_t inputArray[10] = {1.5, 2.0, 5.3, 3.1, 6.7, 4.2, 9.8, 1.0, 7.2, 8.5};
 }
 
 int main(){
-
+  configure_digital_outputs();
   uint8_t counter=0;
+  uint8_t led_status=1;
+  led_on_off(1);
   printk("Start - turn on the UART \n");
   k_msleep(2000);
+  led_on_off(0);
   printk("Start - turn on SX1276 \n");
   k_sem_give(&lorawan_init);  //START HELIUM JOIN
 
    while (1)
     {
-        k_msleep(1000);
+        led_on_off(led_status);
+        k_msleep(500);
+        led_status=!led_status;
+        led_on_off(led_status);
+        k_msleep(500);
         printk("Working...%d   \n",counter);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
@@ -891,6 +938,6 @@ void lorawan_thread(void)
 
 
 //K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
-K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -10, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -1, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
 
