@@ -416,22 +416,29 @@ void setup_initialize(void){
 void print_setup(void){
   
 	  printk("Led Blink Time      : %d ms\n",Initial_Setup.led_blink_time);
+    k_msleep(100);
 	  printk("Interval UpLink Time: %d minutes\n",Initial_Setup.interval_uplink);
+    k_msleep(100);
     printk("DEV     : ");
     for(int i=0;i<=7;i++){printk("%02X ",Initial_Setup.dev[i]);}
     printk("\n");
+    k_msleep(100);
     printk("JOIN    : ");
     for(int i=0;i<=7;i++){printk("%02X ",Initial_Setup.join[i]);}
     printk("\n");
+    k_msleep(100);
     printk("KEY     : ");
     for(int i=0;i<=15;i++){printk("%02X ",Initial_Setup.key[i]);}
     printk("\n");
+    k_msleep(100);
     printk("NWK_KEY : ");
     for(int i=0;i<=15;i++){printk("%02X ",Initial_Setup.nwk_key[i]);}
     printk("\n");
+    k_msleep(100);
     printk("DEV_NOUNCE: %08X\n",Initial_Setup.dev_nonce);
     if(Initial_Setup.joined==1){printk("JOIN = ON");}else{printk("JOIN = OFF");}
     printk("\n");
+    k_msleep(100);
 
 
 }

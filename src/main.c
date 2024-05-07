@@ -70,7 +70,8 @@ uint8_t lorawan_reconnect=0;
 uint32_t data_sent_cnt=0;
 
 //LED AND INPUT
-uint16_t led_period=LED_BLINK_FAST;
+uint16_t led_period=LED_BLINK_SLOW;
+uint8_t led_status=1;
 
 //DIGITAL OUTPUT --> MOTOR
 #define DIG_0_NODE DT_ALIAS(led0)
@@ -100,6 +101,7 @@ uint8_t lora_cycle_minute=0;
 static K_SEM_DEFINE(lorawan_tx, 0, 1); //uplink
 static K_SEM_DEFINE(lorawan_rx, 0, 1); //downlink
 static K_SEM_DEFINE(lorawan_init, 0, 1); //downlink
+static K_SEM_DEFINE(timer_init,0,1);
 extern _Setup Initial_Setup;
 
 #define DEFAULT_RADIO_NODE DT_NODELABEL(lora0)
@@ -654,23 +656,20 @@ float32_t inputArray[10] = {1.5, 2.0, 5.3, 3.1, 6.7, 4.2, 9.8, 1.0, 7.2, 8.5};
 
 int main(){
   configure_digital_outputs();
-  uint8_t counter=0;
-  uint8_t led_status=1;
+  uint32_t counter=0;
   led_on_off(1);
   printk("Start - turn on the UART \n");
   k_msleep(2000);
   led_on_off(0);
   printk("Start - turn on SX1276 \n");
+  setup_initialize();
+  
   k_sem_give(&lorawan_init);  //START HELIUM JOIN
-
+  k_sem_give(&timer_init);
    while (1)
     {
-        led_on_off(led_status);
-        k_msleep(led_period);
-        led_status=!led_status;
-        led_on_off(led_status);
-        k_msleep(led_period);
-        printk("Working...%d   \n",counter);
+        k_msleep(5000);
+        printk("Working...%ld   \n",counter);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
@@ -861,6 +860,66 @@ void downlink_thread(void){
     
 }
 
+
+void shoot_minute_save_thread(void)
+{
+
+	// each one minute this thread will shot.
+	uint64_t actual_time = k_uptime_get() / 1000;
+	signed int h, m, s, last_minute;
+	h = (actual_time / 3600);
+	m = (actual_time - (3600 * h)) / 60;
+	s = (actual_time - (3600 * h) - (m * 60));
+	last_minute = m;
+
+	// time_print ();
+    k_sem_take(&timer_init,K_FOREVER); //wait init
+
+	while (1)
+	{
+		actual_time = k_uptime_get() / 1000;
+		h = (actual_time / 3600);
+		m = (actual_time - (3600 * h)) / 60;
+		s = (actual_time - (3600 * h) - (m * 60));
+
+		if (m == (last_minute + 1))
+		{
+			last_minute = m;
+			if (m == 59)
+			{
+				last_minute = -1;
+			}
+			if (h == 24)
+			{
+				h = 0;
+			} // only up to 23:59:59h
+			  // START RUN THE MINUTE ROUTINE
+			
+            			
+			
+			if (lora_cycle_minute>=Initial_Setup.interval_uplink){
+				k_sem_give(&lorawan_tx);
+				lora_cycle_minute=0;
+			}
+			lora_cycle_minute++;
+			printk("Minute Cycle thread \n");
+		}
+		k_sleep(K_MSEC(100));
+	}
+}
+
+
+void shoot_led_thread(void)
+{
+    while(1){
+      led_on_off(led_status);
+      k_msleep(led_period);
+      led_status=!led_status;
+      led_on_off(led_status);
+      k_msleep(led_period);
+    }
+} 
+
 void lorawan_thread(void)
 {
 	//THIS THREAD MUST HAVE MAXIMUM PRIORITY(-9) IN ORDER TO RECEIVE DOWNLINK CALL BACK
@@ -943,6 +1002,8 @@ void lorawan_thread(void)
 
 
 
+K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
+K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
 K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -1, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
