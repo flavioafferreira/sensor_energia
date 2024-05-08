@@ -666,7 +666,7 @@ int main(){
    while (1)
     {
         led_on_off(led_status);
-        k_msleep(2004);
+        k_msleep(2000);
         led_status=!led_status;
         led_on_off(led_status);
         k_msleep(2000);
