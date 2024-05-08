@@ -669,8 +669,7 @@ int main(){
         k_msleep(2004);
         led_status=!led_status;
         led_on_off(led_status);
-        k_msleep(2003);
-        
+        k_msleep(2000);
         printk("Working...%d   \n",counter);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
