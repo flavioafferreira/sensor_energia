@@ -201,7 +201,7 @@ PROGRAMMER PORT
 
 //LED
 #define LED_BLINK_FAST       30  //ms
-#define LED_BLINK_SLOW       500 //ms
+#define LED_BLINK_SLOW       501 //ms
 
 
 typedef struct _values_temp_ { 
