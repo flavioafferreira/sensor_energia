@@ -195,13 +195,6 @@
 };
 
 
-&led1 {
-	status = "disabled";
-};
-
-&led2 {
-	status = "disabled";
-};
 
 
 &i2c0_sleep {
@@ -212,20 +205,6 @@
 
 
 &button0 {
-	status = "disabled";
-};
-
-&button1 {
-	status = "disabled";
-};
-
-
-&button2 {
-	status = "disabled";
-};
-
-
-&button3 {
 	status = "disabled";
 };
 

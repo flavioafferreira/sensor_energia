@@ -666,10 +666,10 @@ int main(){
    while (1)
     {
         led_on_off(led_status);
-        k_msleep(led_period);
+        k_msleep(2000);
         led_status=!led_status;
         led_on_off(led_status);
-        k_msleep(led_period);
+        k_msleep(2000);
         printk("Working...%d   \n",counter);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
