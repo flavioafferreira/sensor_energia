@@ -668,8 +668,17 @@ int main(){
   k_sem_give(&timer_init);
    while (1)
     {
+<<<<<<< HEAD
         k_msleep(5000);
         printk("Working...%ld   \n",counter);
+=======
+        led_on_off(led_status);
+        k_msleep(2000);
+        led_status=!led_status;
+        led_on_off(led_status);
+        k_msleep(2000);
+        printk("Working...%d   \n",counter);
+>>>>>>> bdaa659fb3d2ab62d0be7b564899766ca2ae88b9
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
