@@ -195,6 +195,11 @@
 };
 
 
+&led2 {
+	status = "disabled";
+
+};
+
 
 
 &i2c0_sleep {
