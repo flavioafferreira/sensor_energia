@@ -964,7 +964,7 @@ void lorawan_thread(void)
 			join_cfg.otaa.nwk_key = app_key;
             
        
-       	    random = sys_rand32_get();
+       	    random = sys_rand32_get()+1;
      		dev_nonce = random & 0x0000FFFF;
 			join_cfg.otaa.dev_nonce = dev_nonce;
 		    ret = lorawan_join(&join_cfg);
