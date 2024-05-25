@@ -974,7 +974,7 @@ void lorawan_thread(void)
 				 color(10);
 				 printk("Failed..Waiting some seconds to try join again\n\n");
 				 color(255);
-			     k_sleep(K_MSEC(53000));
+			     k_sleep(K_MSEC(53002));
 	         }
 			
     

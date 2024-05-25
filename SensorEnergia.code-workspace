@@ -36,5 +36,10 @@
 			"lora.h": "c",
 			"lorawan.h": "c"
 		}
+	},
+	"extensions": {
+		"recommendations": [
+			"github.remotehub"
+		]
 	}
 }
