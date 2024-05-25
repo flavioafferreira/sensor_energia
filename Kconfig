@@ -8,6 +8,7 @@ source "Kconfig.zephyr"
 
 menu "Nordic UART BLE GATT service sample"
 
+	
 config BT_NUS_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 1024
