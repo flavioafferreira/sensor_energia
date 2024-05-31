@@ -73,13 +73,26 @@ uint32_t data_sent_cnt=0;
 uint16_t led_period=LED_BLINK_SLOW;
 uint8_t led_status=1;
 
-//DIGITAL OUTPUT --> MOTOR
-#define DIG_0_NODE DT_ALIAS(led0)
-static const struct gpio_dt_spec led_0 = GPIO_DT_SPEC_GET_OR(DIG_0_NODE, gpios, {0});
-#define DIG_OUT_0_ADR &led_0
-#define DIG_OUT_0      led_0
+//DIGITAL OUTPUT --> LED
+#define LED_0_NODE DT_ALIAS(led0)
+static const struct gpio_dt_spec led_0 = GPIO_DT_SPEC_GET_OR(LED_0_NODE, gpios, {0});
+#define LED_OUT_0_ADR &led_0
+#define LED_OUT_0      led_0
 
-//DIGITAL OUTPUT --> BUTTON0 -- INTERNAL CAPACITOR
+
+// DIO 0 PIN14
+#define DIG_0_NODE DT_ALIAS(dg0)
+static const struct gpio_dt_spec digital_dig0 = GPIO_DT_SPEC_GET_OR(DIG_0_NODE, gpios, {0});
+#define DIG_OUT_0_ADR &digital_dig0
+#define DIG_OUT_0      digital_dig0
+
+// DIO 1 PIN15
+#define DIG_1_NODE DT_ALIAS(dg1)
+static const struct gpio_dt_spec digital_dig1 = GPIO_DT_SPEC_GET_OR(DIG_1_NODE, gpios, {0});
+#define DIG_OUT_1_ADR &digital_dig1
+#define DIG_OUT_1      digital_dig1
+
+// RST
 #define DIG_2_NODE DT_ALIAS(dg2)
 static const struct gpio_dt_spec digital_dig2 = GPIO_DT_SPEC_GET_OR(DIG_2_NODE, gpios, {0});
 #define DIG_OUT_2_ADR &digital_dig2
@@ -171,11 +184,28 @@ static void lorwan_datarate_changed(enum lorawan_datarate dr)
 
 //END_LORAWAN
 
+
+
+
 void configure_digital_outputs(void)
 {
 	gpio_pin_configure_dt(&led_0, GPIO_OUTPUT);
-	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_0.port->name, DIG_OUT_0.pin);
+	printk("Set up Digital Output at %s pin %d\n", LED_OUT_0.port->name, LED_OUT_0.pin);
     gpio_pin_set_dt(&led_0, OFF);
+
+	gpio_pin_configure_dt(&digital_dig0, GPIO_OUTPUT);
+	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_0.port->name, DIG_OUT_0.pin);
+    gpio_pin_set_dt(&digital_dig0, OFF);
+
+	gpio_pin_configure_dt(&digital_dig1, GPIO_OUTPUT);
+	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_1.port->name, DIG_OUT_1.pin);
+    gpio_pin_set_dt(&digital_dig1, OFF);
+
+    gpio_pin_configure_dt(&digital_dig2, GPIO_OUTPUT);
+	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_2.port->name, DIG_OUT_2.pin);
+    gpio_pin_set_dt(&digital_dig2, OFF);
+
+
 
 }
 
@@ -654,6 +684,8 @@ float32_t inputArray[10] = {1.5, 2.0, 5.3, 3.1, 6.7, 4.2, 9.8, 1.0, 7.2, 8.5};
  
 }
 
+#ifdef NORMAL_STARTUP
+
 int main(){
   configure_digital_outputs();
   uint32_t counter=0;
@@ -661,6 +693,8 @@ int main(){
   printk("Start - turn on the UART \n");
   k_msleep(2000);
   led_on_off(0);
+
+
   printk("Start - turn on SX1276 \n");
   setup_initialize();
   
@@ -673,8 +707,42 @@ int main(){
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
+}
+
+#else
+int main(){
+  configure_digital_outputs();
+  uint8_t status=0;
+  led_on_off(1);
+  printk("Test Start \n");
+  k_msleep(2000);
+  led_on_off(0);
+
+   while (1)
+    {
+        status=0;
+        gpio_pin_set_dt(&digital_dig0, status);
+        gpio_pin_set_dt(&digital_dig1, status);
+        gpio_pin_set_dt(&digital_dig2, status);
+        led_on_off(status);
+        k_msleep(200);
+        status=255;
+        gpio_pin_set_dt(&digital_dig0, status);
+        gpio_pin_set_dt(&digital_dig1, status);
+        gpio_pin_set_dt(&digital_dig2, status);
+        led_on_off(status);
+        k_msleep(200);
+        
+
+
+    }
+
 
 }
+
+#endif
+
+
 
 
 void conversion_change_channel(uint8_t new_channel){
@@ -785,7 +853,6 @@ void imprimir_grafico(float *dados, int tamanho_dados, uint16_t tempo_configurav
     printf("\n");
 }
 
-
 void adc_thread(void)
 {
     nrfx_err_t status;
@@ -839,7 +906,6 @@ void adc_thread(void)
     }
 }
 
-
 void downlink_thread(void){
     uint8_t cmd=0;
 	while(1){
@@ -859,7 +925,6 @@ void downlink_thread(void){
 	}
     
 }
-
 
 void shoot_minute_save_thread(void)
 {
@@ -907,7 +972,6 @@ void shoot_minute_save_thread(void)
 		k_sleep(K_MSEC(100));
 	}
 }
-
 
 void shoot_led_thread(void)
 {
@@ -1002,9 +1066,11 @@ void lorawan_thread(void)
 
 
 
+
+#ifdef NORMAL_STARTUP
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
 K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -1, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
-
+#endif

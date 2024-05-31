@@ -4,6 +4,8 @@
 #include <time.h>
 
 
+
+#define NORMAL_STARTUP 1
 //CHOOSE HERE THE DEVICE
 //#define MODULE_GPS 1
 #define MODULE_NEW 1

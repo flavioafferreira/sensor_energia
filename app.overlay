@@ -42,16 +42,16 @@
 	output_digital {
 		compatible = "gpio-keys";
 		dig0: dig_0 {
-			label = "Motor 0";
+			label = "DIO 0 PIN14";
 			
 		};
 		dig1: dig_1 {
-			label = "Digital Output 1";
+			label = "DIO 1 PIN15";
 		
 	    };
 
 		dig2: dig_2 {
-			label = "Test 2";
+			label = "RST";
 		
 	    };
 		
@@ -157,32 +157,32 @@
 
 
 &dig0 {
-	gpios = <&gpio0 18 0>; // MOTOR    P0.15  - WRITE TEST OK
+	gpios = <&gpio0 13 0>; // LORAPWR
 };
 
 &dig1 {
-	gpios = <&gpio0 28 0>; //  CAP-RST  P0.03  - WRITE TEST OK
+	gpios = <&gpio0 8 0>; //  GPS-RST
 };
 
 &dig2 {
-    gpios = <&gpio1 6 0>; // BUTTON-0 P0.05  - WRITE TEST OK
+    gpios = <&gpio0 26 0>; // GPS-PWR 
 };
 
 
 
 &in0 {
-	gpios = <&gpio0 8 0>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+	gpios = <&gpio0 28 0>;  //AIN4 pin 4 P0.28
 };
 
 &in1 {
-	gpios = <&gpio0 0 6>;  //IN0_P    P0.11 CONNECTED TO I2C2CL
+	gpios = <&gpio0 29 0>;  //AIN5 pin 8  P0.29
 };
 
 
 &uart0_default {
 
     group2 {
-        psels = <NRF_PSEL(UART_RX, 0, 3)>, <NRF_PSEL(UART_TX, 0, 2)>;
+        psels = <NRF_PSEL(UART_RX, 0, 24)>, <NRF_PSEL(UART_TX, 0, 2)>; //RX PIN35 P0.24    //TX PIN 7 P0.02
     };
 };
 
@@ -190,12 +190,22 @@
 
 
 &led0 {
-    gpios = <&gpio1 6 (GPIO_ACTIVE_HIGH)>; //LED0     P1.09  WRITE TEST OK
+    gpios = <&gpio1 6 (GPIO_ACTIVE_HIGH)>; //LED0   PIN42  P1.06  WRITE TEST OK
 	label = "Blue LED 0";
+};
+
+&led1 {
+	status = "disabled";
+
 };
 
 
 &led2 {
+	status = "disabled";
+
+};
+
+&led3 {
 	status = "disabled";
 
 };
@@ -213,6 +223,10 @@
 	status = "disabled";
 };
 
+&button1 {
+	status = "disabled";
+};
+
 
 &adc {
 	status = "disabled";
@@ -224,7 +238,7 @@
 };
 
 &spi1 {
-	status = "ok";
+	status = "okay";
 };
 
 &spi3 {
@@ -233,17 +247,17 @@
 
 
 &dig0 {
-	status = "disabled";
+	status = "okay";
 };
 
 
 &dig1 {
-	status = "disabled";
+	status = "okay";
 };
 
 
 &dig2 {
-	status = "disabled";
+	status = "okay";
 };
 /delete-node/ &{/pin-controller/uart0_default/group1/};
 
@@ -274,13 +288,13 @@
 
 &spi1 {
     //VDD - CONNECT TO 3V - USE A 220UF TO GND
-     cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 30 ok
+     cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // PIN NSS //MODULE PIN 30 GPIO 0 17 ok
     lora0: sx1276@0 {
 		        compatible = "semtech,sx1276";
-		        reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>; //MODULE PIN 28
+		        reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>; //MODULE PIN 28 GPIO 0 15
 		        dio-gpios = 
-                 <&gpio1 02 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 38 ok
-                 <&gpio1 04 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 40 ok
+                 <&gpio1 02 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>, //DIO-0 //MODULE PIN 38 ok gpio1 02
+                 <&gpio1 04 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>; //DIO-1 //MODULE PIN 40 ok gpio1 04
                  
 		        power-amplifier-output = "pa-boost";
 		        reg = <0>;
