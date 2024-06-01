@@ -306,8 +306,8 @@
 &spi1_default {
 	group1 {
 		psels = <NRF_PSEL(SPIM_SCK, 0, 20)>,  //MODULE PIN 32
-				<NRF_PSEL(SPIM_MOSI, 0, 22)>, //MODULE PIN 34
-				<NRF_PSEL(SPIM_MISO, 1, 00)>; //MODULE PIN 36
+				<NRF_PSEL(SPIM_MISO, 0, 22)>, //MODULE PIN 34   MOSI
+				<NRF_PSEL(SPIM_MOSI, 1, 00)>; //MODULE PIN 36   MISO
 	};
 };
 
