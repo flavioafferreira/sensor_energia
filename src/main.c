@@ -40,8 +40,6 @@
 
 #include <arm_math.h>
 
-
-
 //#include <nrfx_example.h>
 //#include <saadc_examples_common.h>
 #include <nrfx_saadc.h>
@@ -54,11 +52,9 @@
 #include "dsp/filtering_functions.h"
 #include "dsp/fast_math_functions.h"
 
-
 #include "dsp/transform_functions.h"
 
 #include "includes/variables.h"
-
 
 //INIT_LORAWAN
 #include <zephyr/lorawan/lorawan.h>
@@ -183,9 +179,6 @@ static void lorwan_datarate_changed(enum lorawan_datarate dr)
 }
 
 //END_LORAWAN
-
-
-
 
 void configure_digital_outputs(void)
 {
@@ -986,6 +979,13 @@ void shoot_led_thread(void)
 
 void lorawan_thread(void)
 {
+/*
+https://community.st.com/t5/stm32-mcus-wireless/lorawan-device-join-process-can-succeed-only-follow-counter-dev/td-p/51393
+https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-a-non-volatile-memory-on-end-device/48995
+
+*/
+
+
 	//THIS THREAD MUST HAVE MAXIMUM PRIORITY(-9) IN ORDER TO RECEIVE DOWNLINK CALL BACK
     uint64_t i=0,j=0;
 	int ret;
@@ -1009,6 +1009,11 @@ void lorawan_thread(void)
 	lorawan_register_dr_changed_callback(lorwan_datarate_changed);
 	lorawan_set_conf_msg_tries(20); //was 10
     
+    random = sys_rand32_get()+1;
+    dev_nonce = random & 0x0000FFFF;
+    join_cfg.otaa.dev_nonce = dev_nonce;    
+
+
     while(1){
      ret=-1;
 
@@ -1026,19 +1031,16 @@ void lorawan_thread(void)
 			join_cfg.otaa.join_eui = join_eui;
 			join_cfg.otaa.app_key = app_key;
 			join_cfg.otaa.nwk_key = app_key;
-            
-       
-       	    random = sys_rand32_get()+1;
-     		dev_nonce = random & 0x0000FFFF;
-			join_cfg.otaa.dev_nonce = dev_nonce;
+   		
 		    ret = lorawan_join(&join_cfg);
 
             
 			 if (ret<0){
 				 color(10);
 				 printk("Failed..Waiting some seconds to try join again\n\n");
+                 join_cfg.otaa.dev_nonce=join_cfg.otaa.dev_nonce+1;
 				 color(255);
-			     k_sleep(K_MSEC(20000));
+			     k_sleep(K_MSEC(60000));
 	         }
 			
     
@@ -1071,6 +1073,6 @@ void lorawan_thread(void)
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
-K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -1, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
 #endif
