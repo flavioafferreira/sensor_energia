@@ -97,7 +97,9 @@ uint32_t data_sent_cnt=0;
 uint32_t dev_nonce;
 
 //LED AND INPUT
-uint16_t led_period=LED_BLINK_SLOW;
+uint16_t led_period=LED_BLINK_FAST;
+uint16_t led_period_off=LED_OFF_MULTIPLIER;
+
 uint8_t led_status=1;
 
 //DIGITAL OUTPUT --> LED
@@ -1035,12 +1037,17 @@ void shoot_minute_save_thread(void)
 void shoot_led_thread(void)
 {
     while(1){
-      led_on_off(led_status);
-      k_msleep(led_period);
-      led_status=!led_status;
-      led_on_off(led_status);
-      k_msleep(led_period);
-    }
+
+      if (led_status==OFF){
+          led_status=ON;
+          led_on_off(led_status);
+          k_msleep(led_period);
+      }else{
+          led_status=OFF;
+          led_on_off(led_status);
+          k_msleep(led_period*led_period_off);
+        } 
+     }
 } 
 
 void lorawan_thread(void)
@@ -1101,6 +1108,8 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
 
             
 			 if (ret<0){
+                 led_period=LED_BLINK_FAST;
+                 led_period_off=LED_OFF_MULTIPLIER;
 				 color(10);
 				 printk("Failed..Waiting some seconds to try join again\n\n");
                  join_cfg.otaa.dev_nonce=join_cfg.otaa.dev_nonce+1;
@@ -1112,7 +1121,8 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
       } 
 	  color(10);
 	  printk("Joined OTAA\n\n");
-      led_period=LED_BLINK_FAST;
+      led_period=LED_BLINK_SLOW;
+      led_period_off=LED_OFF_MULTIPLIER_JOINED;
 	  color(255);
 	  Initial_Setup.joined=ON;
       for(int i=0;i<=15;i++){Initial_Setup.nwk_key[i]=join_cfg.otaa.nwk_key[i];}

@@ -7,8 +7,11 @@
 
 #define NORMAL_STARTUP 1
 //CHOOSE HERE THE DEVICE
-#define MODULE_GPS 1
-//#define MODULE_NEW 1
+//#define MODULE_1 1
+//#define MODULE_2 1
+#define MODULE_3 1
+
+
 
 /*
  THESE INSTRUCTIONS APPLIES TO "WaterSensorV4 Montaggio Prototype Corrected New v2"
@@ -194,7 +197,7 @@ PROGRAMMER PORT
 #define DOWNLINK_BUFF_SIZE 51
 #define DATA_SENT_JOIN_AGAIN 40 //AFTER HOW MANY INTERACTS MAKES A RE-JOIN
 
-#ifdef MODULE_GPS
+#ifdef MODULE_1
 ///DEVICE NRF53_GPS
 //DEVICE_EUI
 #define LORAWAN_DEV_EUI_HELIUM  {0x60, 0x81, 0xF9, 0x44, 0x0A, 0xFD, 0x54, 0x54}
@@ -205,7 +208,7 @@ PROGRAMMER PORT
 #endif
 
 
-#ifdef MODULE_NEW
+#ifdef MODULE_2
 ///DEVICE TESTE1 
 //DEVICE_EUI msb
 #define LORAWAN_DEV_EUI_HELIUM  {0x60, 0x81, 0xF9, 0x07, 0x40, 0x35, 0x0D, 0x69} //msb DEVICE_EUI
@@ -215,14 +218,30 @@ PROGRAMMER PORT
 #define LORAWAN_APP_KEY_HELIUM  {0xE0, 0x07, 0x38, 0x87, 0xAF, 0x4F, 0x16, 0x6E, 0x8E, 0x52, 0xD3, 0x27, 0x0F, 0x2E, 0x64, 0x6F}
 #endif
 
+#ifdef MODULE_3
+///DEVICE TESTE1 
+//DEVICE_EUI msb
+#define LORAWAN_DEV_EUI_HELIUM  {0x60, 0x81, 0xF9, 0x19, 0x48, 0x0D, 0x60, 0x83} //msb DEVICE_EUI
+//APP_EUI msb
+#define LORAWAN_JOIN_EUI_HELIUM {0x60, 0x81, 0xF9, 0x82, 0xBD, 0x7F, 0x80, 0xD5} //msb 
+//APP_KEY msb
+#define LORAWAN_APP_KEY_HELIUM  {0x2C, 0x40, 0xCC, 0x8B, 0xDF, 0x88, 0x10, 0xED, 0x9B, 0xE3, 0x83, 0xEC, 0xEE, 0xB4, 0xD9, 0x85}
+
+#endif
+
+
+
 
 //DIGITAL INPUT TIMERS
 #define DIGITAL0_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 #define DIGITAL1_INPUT_DELAY          500 // 500ms -- max 2 cycles/sec
 
 //LED
-#define LED_BLINK_FAST       30  //ms
-#define LED_BLINK_SLOW       501 //ms
+#define LED_BLINK_FAST       100  //ms
+#define LED_BLINK_SLOW       10 //ms
+#define LED_OFF_MULTIPLIER          50 
+#define LED_OFF_MULTIPLIER_JOINED   1000 
+
 
 
 typedef struct _values_temp_ { 
