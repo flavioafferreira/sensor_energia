@@ -94,8 +94,6 @@ float BetaTermistor(void) {
 float ntc_temperature(uint16_t conversao,uint8_t sensor_number){
   // ELECTRIC WIRE DIAGRAM
   //  +3V --- RESISTOR_SERIE_NTC ----AD--- NTC --- GND
-
-
   //sources:  https://blog.eletrogate.com/termistor-ntc-para-controle-de-temperatura/
   //          https://elcereza.com/termistor/
   float voltageUc = conversao*(ADC_VOLTAGE_REF/(ADC_RESOLUTION-1));
@@ -266,16 +264,11 @@ void display_init(void)
            
 }
 
-
-
 ///LORAWAN
-
-
 //lorawan
 // https://www.youtube.com/watch?v=M5VGos3YTpI&t=150s
 // https://playcode.io/javascript
 //https://www.exploringbinary.com/displaying-the-raw-fields-of-a-floating-point-number/
-
 
 
 void lorawan_tx_data(void){
@@ -374,7 +367,7 @@ void lorawan_tx_data(void){
             color(255);
             //lorawan_reconnect_cnt=0;
 		     }
-    if(data_sent_cnt>=DATA_SENT_JOIN_AGAIN){lorawan_reconnect=1;led_period=LED_BLINK_SLOW;}
+    if(data_sent_cnt>=DATA_SENT_JOIN_AGAIN){lorawan_reconnect=1;led_period=LED_BLINK_FAST;}
 
   
 
