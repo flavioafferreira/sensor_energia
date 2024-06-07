@@ -56,6 +56,36 @@
 
 #include "includes/variables.h"
 
+//NVS
+#include <zephyr/drivers/flash.h>
+#include <zephyr/storage/flash_map.h>
+#include <zephyr/fs/nvs.h>
+
+static struct nvs_fs fs;
+
+#define NVS_PARTITION		storage_partition
+#define NVS_PARTITION_DEVICE	FIXED_PARTITION_DEVICE(NVS_PARTITION)
+#define NVS_PARTITION_OFFSET	FIXED_PARTITION_OFFSET(NVS_PARTITION)
+
+/* 1000 msec = 1 sec */
+#define SLEEP_TIME      100
+/* maximum reboot counts, make high enough to trigger sector change (buffer */
+/* rotation). */
+#define MAX_REBOOT 400
+
+#define ADDRESS_ID 1
+#define KEY_ID 2
+#define RBT_CNT_ID 3
+#define STRING_ID 4
+#define LONG_ID 5
+
+int rc = 0, cnt = 0, cnt_his = 0;
+char buf[16];
+uint8_t key[8], longarray[128];
+uint32_t reboot_counter = 0U, reboot_counter_his;
+struct flash_pages_info info;
+
+
 //INIT_LORAWAN
 #include <zephyr/lorawan/lorawan.h>
 #include <zephyr/drivers/lora.h>
@@ -64,6 +94,7 @@
 //LORAWAN 
 uint8_t lorawan_reconnect=0;
 uint32_t data_sent_cnt=0;
+uint32_t dev_nonce;
 
 //LED AND INPUT
 uint16_t led_period=LED_BLINK_SLOW;
@@ -207,8 +238,6 @@ void led_on_off(uint8_t status)
    gpio_pin_set_dt(&led_0, status);
 	
 }
-
-
 
 
 #define FFT_SIZE 2048 //was 2048
@@ -421,10 +450,6 @@ static const nrfx_saadc_channel_t m_single_channel_7 ={
     .channel_index  = 0,                           
 };
 
-
-
-
-
 /** @brief Samples buffer to store values from a single channel ( @ref m_single_channel). */
 static nrf_saadc_value_t m_sample_buffers[BUFFER_COUNT][BUFFER_SIZE];
 
@@ -483,8 +508,7 @@ static K_SEM_DEFINE(req_adc_values, 0, 1);
  *
  * @param[in] p_event Pointer to an SAADC driver event.
  */
-static void saadc_handler(nrfx_saadc_evt_t const * p_event)
-{
+static void saadc_handler(nrfx_saadc_evt_t const * p_event){
     nrfx_err_t status;
     (void)status;
 
@@ -623,7 +647,6 @@ float arm_snr_f32_x(float *pRef, float *pTest, uint32_t buffSize)
 
 }
 
-
 int filter(void){
   //https://github.com/ARM-software/CMSIS_4/tree/master/CMSIS/DSP_Lib/Examples/arm_fir_example/ARM
 
@@ -656,7 +679,6 @@ int filter(void){
  return status;
 }
 
-
 void fft() {
     // Preencha input_buffer com os dados do sinal que você deseja analisar
   arm_status status;
@@ -677,9 +699,53 @@ float32_t inputArray[10] = {1.5, 2.0, 5.3, 3.1, 6.7, 4.2, 9.8, 1.0, 7.2, 8.5};
  
 }
 
-#ifdef NORMAL_STARTUP
+void memory_init(void){
+    	/* define the nvs file system by settings with:
+	 *	sector_size equal to the pagesize,
+	 *	3 sectors
+	 *	starting at NVS_PARTITION_OFFSET
+	 */
+	fs.flash_device = NVS_PARTITION_DEVICE;
+	if (!device_is_ready(fs.flash_device)) {
+		printk("Flash device %s is not ready\n", fs.flash_device->name);
+		return 0;
+	}
+	fs.offset = NVS_PARTITION_OFFSET;
+	rc = flash_get_page_info_by_offs(fs.flash_device, fs.offset, &info);
+	if (rc) {
+		printk("Unable to get page info\n");
+		return 0;
+	}
+	fs.sector_size = info.size;
+	fs.sector_count = 3U;
 
+	rc = nvs_mount(&fs);
+	if (rc) {
+		printk("Flash Init failed\n");
+		return 0;
+	}
+
+}
+
+void reboot_counter_read(void){
+
+  rc = nvs_read(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
+ 	if (rc > 0) { /* item was found, show it */
+ 		 printk("Id: %d, Reboot_counter: %d\n",RBT_CNT_ID, reboot_counter);
+	 } else   {/* item was not found, add it */
+		 printk("No Reboot counter found, adding it at id %d\n",RBT_CNT_ID);
+		(void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
+	}
+  dev_nonce=reboot_counter;
+  reboot_counter++;
+  (void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter,sizeof(reboot_counter));  
+
+}
+
+#ifdef NORMAL_STARTUP
 int main(){
+  memory_init();
+  reboot_counter_read();
   configure_digital_outputs();
   uint32_t counter=0;
   led_on_off(1);
@@ -990,7 +1056,7 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
     uint64_t i=0,j=0;
 	int ret;
     uint32_t random;
-    uint32_t dev_nonce;
+    
     lora_dev = DEVICE_DT_GET(DT_NODELABEL(lora0));
 
 	//LoRaMacTestSetDutyCycleOn(0);//disable dutyCycle for test
@@ -1009,10 +1075,9 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
 	lorawan_register_dr_changed_callback(lorwan_datarate_changed);
 	lorawan_set_conf_msg_tries(20); //was 10
     
-    random = sys_rand32_get()+1;
-    dev_nonce = random & 0x0000FFFF;
+    //random = sys_rand32_get()+1;
+    //dev_nonce = random & 0x0000FFFF;
     join_cfg.otaa.dev_nonce = dev_nonce;    
-
 
     while(1){
      ret=-1;

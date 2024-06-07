@@ -2,6 +2,10 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"name": "nvs",
+			"path": "../nvs"
 		}
 	],
 	"settings": {
@@ -24,6 +28,7 @@
 					]
 				}
 			]
-		}
+		},
+		"nrf-connect.applications": []
 	}
 }

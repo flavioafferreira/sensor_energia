@@ -128,9 +128,6 @@ float current_sensor(uint16_t conversao){
   return current;
 }
 
-
-
-
 void bungiorno_oled(uint32_t interval){
     uint8_t x_offset = 0;
     uint8_t y_offset;
@@ -160,8 +157,6 @@ void display_temperature_oled(float *data)
     cfb_framebuffer_set_font(dev, SELECTED_FONT_INDEX);
 
 }
-
-
 
 void display_play(uint8_t message_display[30],uint32_t interval,uint8_t qty)
 {
@@ -287,11 +282,11 @@ void lorawan_tx_data(void){
 
   char data_test[] =  { 0X00 , 0X00 , 0X00 , 0X00 , //LATITUDE
                         0X00 , 0X00 , 0X00 , 0X00 , //LONGITUDE
-					    0X00 , 0X00 , 0X00 , 0X00 , //TIMESTAMP
-					    0X00 , 0X00 , 0X00 , 0X00 , //ANALOG
+					              0X00 , 0X00 , 0X00 , 0X00 , //TIMESTAMP
+					              0X00 , 0X00 , 0X00 , 0X00 , //ANALOG
                         0X00 ,                      //DIGITAL
                         0X00 ,                      //DIGITAL
-					    0X00 , 0X00 ,               //NTC0
+					              0X00 , 0X00 ,               //NTC0
                         0X00 , 0X00 ,               //NTC1 
                         0X00 , 0X00                 //NTC2 
                       };
@@ -481,7 +476,6 @@ void color(uint8_t color) {
                 break;
     }
 }
-
 
 Data_Return cmd_interpreter(uint8_t *data,uint8_t len){
   
