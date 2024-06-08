@@ -109,19 +109,19 @@ static const struct gpio_dt_spec led_0 = GPIO_DT_SPEC_GET_OR(LED_0_NODE, gpios, 
 #define LED_OUT_0      led_0
 
 
-// DIO 0 PIN14
+// LORAPWR pin12
 #define DIG_0_NODE DT_ALIAS(dg0)
 static const struct gpio_dt_spec digital_dig0 = GPIO_DT_SPEC_GET_OR(DIG_0_NODE, gpios, {0});
 #define DIG_OUT_0_ADR &digital_dig0
 #define DIG_OUT_0      digital_dig0
 
-// DIO 1 PIN15
+// GPS-RST pin16
 #define DIG_1_NODE DT_ALIAS(dg1)
 static const struct gpio_dt_spec digital_dig1 = GPIO_DT_SPEC_GET_OR(DIG_1_NODE, gpios, {0});
 #define DIG_OUT_1_ADR &digital_dig1
 #define DIG_OUT_1      digital_dig1
 
-// RST
+// GPS-PWR  pin12
 #define DIG_2_NODE DT_ALIAS(dg2)
 static const struct gpio_dt_spec digital_dig2 = GPIO_DT_SPEC_GET_OR(DIG_2_NODE, gpios, {0});
 #define DIG_OUT_2_ADR &digital_dig2
@@ -221,7 +221,7 @@ void configure_digital_outputs(void)
 
 	gpio_pin_configure_dt(&digital_dig0, GPIO_OUTPUT);
 	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_0.port->name, DIG_OUT_0.pin);
-    gpio_pin_set_dt(&digital_dig0, OFF);
+    gpio_pin_set_dt(&digital_dig0, OFF); //reset is a off pulse, then is inverted
 
 	gpio_pin_configure_dt(&digital_dig1, GPIO_OUTPUT);
 	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_1.port->name, DIG_OUT_1.pin);
