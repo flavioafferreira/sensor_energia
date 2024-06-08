@@ -63,6 +63,8 @@ extern Sensor_Status_ sensor_status;
 //SEMAPHORE
 extern uint8_t lorawan_reconnect;
 
+static K_SEM_DEFINE(gps_init,0,1);
+
 //SETUP
 _Setup Initial_Setup;
 
@@ -77,6 +79,9 @@ static uint8_t font_height;
 //LED
 extern uint16_t led_period;
 
+
+//GPS
+extern Gnss position;
 
 float BetaTermistor(void) {
   //USE ONLY ONCE TO CALCULATE BETA
@@ -199,6 +204,32 @@ void display_play(uint8_t message_display[30],uint32_t interval,uint8_t qty)
 
 
 }
+
+
+int debug_print_fields(int numfields, char **fields)
+{
+	printf("Parsed %d fields\r\n",numfields);
+
+	for (int i = 0; i <= numfields; i++) {
+		printf("Field %02d: [%s]\r\n",i,fields[i]);
+	}
+}
+
+int parse_comma_delimited_str(char *string, char **fields, int max_fields)
+{
+	int i = 0;
+	fields[i++] = string;
+
+	while ((i < max_fields) && NULL != (string = strchr(string, ','))) {
+		*string = '\0';
+		fields[i++] = ++string;
+	}
+
+	return --i;
+}
+
+
+
 
 
 /*---------------------------------------------------------------------------*/
@@ -560,3 +591,48 @@ Data_Return cmd_interpreter(uint8_t *data,uint8_t len){
     
 }
 
+void fill_date(uint8_t *field_time,uint8_t *field_date ){
+
+	         uint8_t part[2];
+				   //day
+				   part[0]=field_date[0];
+           part[1]=field_date[1];
+           position.t.tm_mday=atoi(part);
+				   //month
+				   part[0]=field_date[2];
+           part[1]=field_date[3];
+				   position.t.tm_mon=(atoi(part)-1); 	// Month, where 0 = jan
+				   //year
+				   part[0]=field_date[4];
+           part[1]=field_date[5];
+				   position.t.tm_year=atoi(part);	
+                  
+				   //hour
+				   part[0]=field_time[0];
+           part[1]=field_time[1];
+				   position.t.tm_hour=atoi(part);	
+				   //min
+				   part[0]=field_time[2];
+           part[1]=field_time[3];
+				   position.t.tm_min=atoi(part);	
+				   //sec
+				   part[0]=field_time[4];
+           part[1]=field_time[5];
+				   position.t.tm_sec=atoi(part);	
+           //latitude_time_print();				   				   
+           
+}
+
+void latitude_time_print(void){
+    printf("TimeStamp  :%02d/%02d/%02d %02d:%02d:%02d \r\n",
+				  position.t.tm_mday,
+					(position.t.tm_mon+1),
+					position.t.tm_year,
+					position.t.tm_hour,
+					position.t.tm_min,
+					position.t.tm_sec );
+
+    printf("Latitude  N:%s\r\n",position.latitude);
+    printf("Longitude E:%s\r\n",position.longitude);
+
+}

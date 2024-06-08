@@ -4,6 +4,9 @@ void display_play(uint8_t message_display[30],uint32_t interval,uint8_t qty);
 void display_temperature_oled(float *data);
 void bungiorno_oled(uint32_t interval);
 float current_sensor(uint16_t conversao);
+void fill_date(uint8_t *field_time,uint8_t *field_date );
+int parse_comma_delimited_str(char *string, char **fields, int max_fields);
+
 
 #define MaxBuf 164
 

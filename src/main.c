@@ -4,7 +4,7 @@
     module SX1276
 */
 
-
+#include "uart_async_adapter.h"
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/uart.h>
@@ -136,8 +136,40 @@ static struct gpio_callback digital_cb_data_dig_in0;
 #define DIG_0_CB  &digital_cb_data_dig_in0
 
 
+
+//GPS
+Gnss position;
+
+
 //ALARM
 Sensor_Status_ sensor_status;
+
+// SEMAPHORES FOR THREADS
+static K_SEM_DEFINE(gps_init,0,1);
+
+
+// UART PORT DEFINITION ON app.overlay
+
+static const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
+
+static struct k_work_delayable uart_work;
+struct uart_data_t *buf_extra;
+uint32_t buff_extra_index=0;
+uint32_t buff_marker=0;
+
+static K_FIFO_DEFINE(fifo_uart_tx_data);
+static K_FIFO_DEFINE(fifo_uart_rx_data);
+
+static K_FIFO_DEFINE(command_rx);
+static K_FIFO_DEFINE(command_tx);
+
+#define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
+#define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
+
+
+//UART END
+
+
 
 uint8_t lora_cycle_minute=0;
 static K_SEM_DEFINE(lorawan_tx, 0, 1); //uplink
@@ -174,6 +206,145 @@ struct _Downlink_ downlink_cmd_new;
 // DOWNLINK CHOOSE FIRST AND PORT2
 
 
+//UART_FUNCTIONS
+
+void uart2_tx(uint8_t Name[])
+{
+	struct uart_data_t *buf;
+	buf = k_malloc(sizeof(*buf));
+	uint16_t size = sizeof(Name);
+
+	uint8_t i = 0;
+	while (i < sizeof(Name))
+	{
+		buf->data[i] = Name[i];
+		i++;
+	}
+	buf->len = (sizeof(Name) - 1);
+	uart_tx(uart, buf->data, buf->len, SYS_FOREVER_MS);
+	k_free(buf);
+}
+
+static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
+{
+
+	ARG_UNUSED(dev);
+	static bool disable_req;
+	struct uart_data_t *buf;
+	uint8_t i = 0;
+	switch (evt->type)
+	{
+
+	case UART_RX_RDY:
+		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
+		buf->len += evt->data.rx.len;
+	
+	   //START WITH $ CHARACTER
+        if(buf->data[buf->len - 1]==0x24  && buff_marker==0){
+			buf_extra = k_malloc(sizeof(*buf_extra));
+			buff_extra_index=0;
+			buff_marker=1;
+			//blink(LED3,2);
+		}
+   
+       //STOP WITH 0X0A
+        if(buff_marker==1 && (buff_extra_index<(sizeof(*buf)-1)) ){
+		    buf_extra->data[buff_extra_index++]=buf->data[buf->len - 1];
+			if(buf->data[buf->len - 1]==0x0A){
+			   buf_extra->data[buff_extra_index++] = 0x00;
+			   buf_extra->len = buff_extra_index;
+			   if(buf_extra->len>0) {
+				 k_fifo_put(&fifo_uart_rx_data, buf_extra); // TRANSFER TO FIFO
+				 k_free(buf_extra);
+			   }
+			   buff_marker=0;
+			   //blink(LED4,2);
+			}
+		} 
+ 		
+		break;
+
+	case UART_RX_DISABLED:
+
+		// blink(LED4,4);
+		buf = k_malloc(sizeof(*buf)); // THE SIZE IS 92 BYTES
+		if (buf)
+		{
+			buf->len = 0;
+		}
+		else
+		{
+			k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+			return;
+		}
+
+		buf->len = 0;
+		uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+
+		break;
+
+	case UART_RX_BUF_REQUEST:
+		buf = k_malloc(sizeof(*buf));
+		buf->len = 0;
+		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
+		break;
+
+	case UART_RX_BUF_RELEASED:
+
+		buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
+		if (buf->len > 0)
+		{
+			k_free(buf);
+		}
+
+		break;
+	}
+}
+
+static void uart_work_handler(struct k_work *item)
+{
+	struct uart_data_t *buf;
+	buf = k_malloc(sizeof(*buf)); // SIZE IS 92 BYTES
+	if (buf)
+	{
+		buf->len = 0;
+	}
+	else
+	{
+		printk("Not able to allocate UART receive buffer - GPS\n");
+		k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+		return;
+	}
+
+	uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+}
+
+static int uart_init(void)
+{
+
+	uart_irq_rx_enable(uart);
+
+	struct uart_data_t *rx_uart;
+	struct uart_data_t *tx_uart;
+
+	if (!device_is_ready(uart))
+	{
+		return -ENODEV;
+	}
+
+	rx_uart = k_malloc(sizeof(*rx_uart));
+	rx_uart->len = 0;
+	k_work_init_delayable(&uart_work, uart_work_handler);
+
+	uart_callback_set(uart, uart_cb, NULL);
+    //ERROR BELOW
+	//uart_rx_enable(uart, rx_uart->data, sizeof(rx_uart->data), UART_WAIT_FOR_RX);
+
+	return 0;
+}
+
+
+//UART_FUNCTIONS END
 
 static void dl_callback(uint8_t port, bool data_pending,int16_t rssi, int8_t snr, uint8_t len, const uint8_t *data)	{
     
@@ -749,9 +920,12 @@ int main(){
   memory_init();
   reboot_counter_read();
   configure_digital_outputs();
+  
+  uart_init();
   uint32_t counter=0;
   led_on_off(1);
   printk("Start - turn on the UART \n");
+  k_sem_give(&gps_init);
   k_msleep(2000);
   led_on_off(0);
 
@@ -967,6 +1141,162 @@ void adc_thread(void)
     }
 }
 
+void gnss_write_thread(void)
+{
+    uint8_t debug = ON;
+	uint8_t value;
+	uint32_t i = 0, j = 1, k = 0, h = 0, g = 0, index = 0, bfcnt = 0;
+	uint64_t time = k_uptime_get();
+	uint8_t state = 0, pkt_init = 0;
+	static uint8_t buffer[BUFF_SIZE];
+
+    //http://aprs.gids.nl/nmea/     sentences descriptions
+    //const char nmea_id[10] = "$GPGGA"; //capture this sentence
+    const char nmea_id[10] = "$GPRMC"; //capture this sentence
+	
+
+    static char *field[20];
+    char *ret;
+    char *token;
+    char marker[2]="\n";
+    //marker[0]=0x0d;
+
+	uint8_t part[2];
+
+	while (i < BUFF_SIZE)buffer[i++] = 0x20;//space
+	i = 0;
+
+	struct uart_data_t *buf2a;
+	buf2a = k_malloc(sizeof(*buf2a));
+	//
+
+	k_sem_take(&gps_init,K_FOREVER); 
+
+	for (;;)
+	{
+		
+		buf2a = k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+		k_fifo_init(&fifo_uart_rx_data);
+
+		if (buf2a->len > 0)
+		{
+			k = (buf2a->len);
+
+			i = 0;
+			index = 0;
+			//blink(LED4,2);
+           
+			while (i < k && pkt_init == 0)
+			{
+				// printf("%02X ",buf2a->data[i]);
+				switch (buf2a->data[i])
+				{
+				case 0x24: //$
+					if (state == 0)state = 1;
+					break;
+				case 0x47: // G
+					if (state == 1)state = 2;
+
+					break;
+				case 0x50: // P
+					if (state == 2)state = 3;
+
+					break;
+				case 0x52: // R
+					if (state == 3)state = 4;
+
+					break;
+				case 0x4D: // M
+					if (state == 4)state = 5;
+
+					break;
+				case 0x43: // C
+					if (state == 5){
+						state = 6;
+					    index = i - 5;
+					}
+					break;
+				}
+				i++;
+			}
+
+			if (state == 6 && pkt_init == 0)
+			{
+				//printf("BEGIN:\n");
+				while (index < k)
+				{
+					//printf("%c", buf2a->data[index]);
+					if (buf2a->data[index]!=0x0D) {
+						buffer[bfcnt] = buf2a->data[index];
+						bfcnt++;
+					}
+					index++;
+				}
+				pkt_init=1;
+			}
+		}
+
+		buf2a = k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+		if (buf2a->len > 0)
+		{
+			if ((pkt_init >= 1) && (bfcnt < BUFF_SIZE)  )
+			{
+				index = 0;
+				while ((index < k)  && (bfcnt < BUFF_SIZE))
+				{
+					if (buf2a->data[index]!=0x0D) {
+						buffer[bfcnt] = buf2a->data[index];
+						bfcnt++;
+					}
+					index++;
+				}
+				pkt_init++;
+			}
+
+			if (bfcnt >= BUFF_SIZE - 1)
+			{
+                index = 0;
+                while(index < bfcnt ){
+					//printf("%c",buffer[index]);
+				   	index++;
+				}
+   				ret = strstr(buffer, nmea_id);
+   				//printf("The substring is: %s\n", ret);
+   				token = strtok(ret, marker);
+   				//printf("%s\n", token );
+   				i=parse_comma_delimited_str(token, field, 20);
+                //debug_print_fields(i,field);
+				
+				if (i==12){
+				  //printf("\nGPS Fixed  :%s\r\n",field[2]); //(0=invalid; 1=GPS fix; 2=Diff. GPS fix)
+				  
+				  position.gps_fixed=*field[2]-0x40; //char A=0x41 - 0x40 = 1
+				  //printf("inteiro %d\n",position.gps_fixed);
+				  if (position.gps_fixed==1){  
+                   //printf("GPS Fixed  :Yes\n");
+				   //printf("Time       :%s\r\n",field[1]);
+				   //printf("Date       :%s\r\n",field[9]);
+                   //printf("Latitude  N:%s\r\n",field[3]);
+                   //printf("Longitude E:%s\r\n",field[5]);
+				   position.latitude=atof(field[3]);
+				   position.longitude=atof(field[5]);
+				   fill_date(field[1],field[9]);
+				  }//else printf("Not Fixed yet\n");
+			    }
+				index = 0;
+				pkt_init = 0;
+				bfcnt = 0;
+				state = 0;
+				while (index < BUFF_SIZE)buffer[index++] = 0x20;//space
+				index=0;
+			}
+			// printf("j:%d\n",j);
+			j++;
+		}
+	}
+}
+
+
 void downlink_thread(void){
     uint8_t cmd=0;
 	while(1){
@@ -1148,6 +1478,8 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
-K_THREAD_DEFINE(lorawan_thread_id, 32000, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
-K_THREAD_DEFINE(downlink_thread_id, 10000, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 1024, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
+K_THREAD_DEFINE(downlink_thread_id, 1024, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
+K_THREAD_DEFINE(gnss_write_thread_id, 1024, gnss_write_thread, NULL, NULL, NULL, PRIORITY, 0, 0);
+
 #endif

@@ -55,7 +55,9 @@ PROGRAMMER PORT
 */
 
 
-
+#define BUFF_SIZE 480  //BUFFER TO JOIN UART BYTES RECEIVED
+#define UART_BUF_SIZE CONFIG_BT_NUS_UART_BUFFER_SIZE
+#define PRIORITY -1
 
 #define RUN_STATUS_LED DK_LED1
 #define RUN_LED_BLINK_INTERVAL 1000
@@ -447,4 +449,10 @@ typedef struct _Sensor_Status_{
     uint8_t busy[NUMBER_OF_SENSORS];
 }Sensor_Status_;
 
+struct uart_data_t
+{
+	void *fifo_reserved;
+	uint8_t data[UART_BUF_SIZE];
+	uint16_t len;
+};
 
