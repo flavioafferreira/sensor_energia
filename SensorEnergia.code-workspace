@@ -2,10 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"name": "echo_bot_1",
-			"path": "../echo_bot_1"
 		}
 	],
 	"settings": {
