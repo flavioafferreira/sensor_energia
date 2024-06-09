@@ -166,6 +166,12 @@ static K_FIFO_DEFINE(command_tx);
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
 #define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
 
+#if CONFIG_BT_NUS_UART_ASYNC_ADAPTER
+UART_ASYNC_ADAPTER_INST_DEFINE(async_adapter);
+#else
+static const struct device *const async_adapter;
+#endif
+
 
 //UART END
 
@@ -208,7 +214,8 @@ struct _Downlink_ downlink_cmd_new;
 
 //UART_FUNCTIONS
 
-void uart2_tx(uint8_t Name[])
+/*
+void uart_tx_msg(uint8_t Name[])
 {
 	struct uart_data_t *buf;
 	buf = k_malloc(sizeof(*buf));
@@ -224,6 +231,7 @@ void uart2_tx(uint8_t Name[])
 	uart_tx(uart, buf->data, buf->len, SYS_FOREVER_MS);
 	k_free(buf);
 }
+*/
 
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
@@ -238,7 +246,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 	case UART_RX_RDY:
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
-	
+	    printf("Dados Recebidos\n");
 	   //START WITH $ CHARACTER
         if(buf->data[buf->len - 1]==0x24  && buff_marker==0){
 			buf_extra = k_malloc(sizeof(*buf_extra));
@@ -254,10 +262,12 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 			   buf_extra->data[buff_extra_index++] = 0x00;
 			   buf_extra->len = buff_extra_index;
 			   if(buf_extra->len>0) {
+                 
 				 k_fifo_put(&fifo_uart_rx_data, buf_extra); // TRANSFER TO FIFO
 				 k_free(buf_extra);
 			   }
 			   buff_marker=0;
+               
 			   //blink(LED4,2);
 			}
 		} 
@@ -337,8 +347,7 @@ static int uart_init(void)
 	k_work_init_delayable(&uart_work, uart_work_handler);
 
 	uart_callback_set(uart, uart_cb, NULL);
-    //ERROR BELOW
-	//uart_rx_enable(uart, rx_uart->data, sizeof(rx_uart->data), UART_WAIT_FOR_RX);
+	uart_rx_enable(uart, rx_uart->data, sizeof(rx_uart->data), UART_WAIT_FOR_RX);
 
 	return 0;
 }
@@ -510,7 +519,6 @@ static const nrfx_saadc_channel_t m_single_channel_0 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_1 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -526,7 +534,6 @@ static const nrfx_saadc_channel_t m_single_channel_1 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_2 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -542,7 +549,6 @@ static const nrfx_saadc_channel_t m_single_channel_2 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_3 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -558,7 +564,6 @@ static const nrfx_saadc_channel_t m_single_channel_3 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_4 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -574,7 +579,6 @@ static const nrfx_saadc_channel_t m_single_channel_4 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_5 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -590,7 +594,6 @@ static const nrfx_saadc_channel_t m_single_channel_5 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_6 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -606,7 +609,6 @@ static const nrfx_saadc_channel_t m_single_channel_6 ={
     .pin_n          = NRF_SAADC_INPUT_DISABLED,         
     .channel_index  = 0,                           
 };
-
 static const nrfx_saadc_channel_t m_single_channel_7 ={                                                       
     .channel_config =                                   
     {                                                   
@@ -917,6 +919,7 @@ void reboot_counter_read(void){
 
 #ifdef NORMAL_STARTUP
 int main(){
+  uint8_t mensagem[]="ABCDEF";  
   memory_init();
   reboot_counter_read();
   configure_digital_outputs();
@@ -939,6 +942,7 @@ int main(){
     {
         k_msleep(5000);
         printk("Working...%ld   \n",counter);
+        printf("%s\n",&mensagem);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
@@ -1296,7 +1300,6 @@ void gnss_write_thread(void)
 	}
 }
 
-
 void downlink_thread(void){
     uint8_t cmd=0;
 	while(1){
@@ -1477,7 +1480,7 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
 #ifdef NORMAL_STARTUP
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
-K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
+//K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
 K_THREAD_DEFINE(lorawan_thread_id, 1024, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 1024, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
 K_THREAD_DEFINE(gnss_write_thread_id, 1024, gnss_write_thread, NULL, NULL, NULL, PRIORITY, 0, 0);
