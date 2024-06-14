@@ -1083,7 +1083,7 @@ int main(){
     {
         k_msleep(5000);
         printk("Working...%ld   \n",counter);
-        printf("%s\n",&mensagem);
+        //printf("%s\n",&mensagem);
         counter++;
         //NRFX_EXAMPLE_LOG_PROCESS();
     }
@@ -1540,7 +1540,7 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
     
     lora_dev = DEVICE_DT_GET(DT_NODELABEL(lora0));
 
-	//LoRaMacTestSetDutyCycleOn(0);//disable dutyCycle for test
+	//LoRaMacTestSetDutyCycleOn(1);//disable dutyCycle for test
 
     k_sem_take(&lorawan_init, K_FOREVER);  // WAIT FOR INIT
 	color(10);
@@ -1622,8 +1622,8 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 //K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
-K_THREAD_DEFINE(lorawan_thread_id, 1024, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 2048, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 1024, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
-K_THREAD_DEFINE(gnss_write_thread_id, 1024, gnss_write_thread, NULL, NULL, NULL, PRIORITY, 0, 0);
+K_THREAD_DEFINE(gnss_write_thread_id, 1024, gnss_write_thread, NULL, NULL, NULL, 4, 0, 0);
 
 #endif
