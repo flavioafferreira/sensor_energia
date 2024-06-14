@@ -56,6 +56,11 @@
 
 #include "includes/variables.h"
 
+#define LOG_MODULE_NAME peripheral_uart
+LOG_MODULE_REGISTER(LOG_MODULE_NAME);
+
+
+
 //NVS
 #include <zephyr/drivers/flash.h>
 #include <zephyr/storage/flash_map.h>
@@ -127,6 +132,13 @@ static const struct gpio_dt_spec digital_dig2 = GPIO_DT_SPEC_GET_OR(DIG_2_NODE, 
 #define DIG_OUT_2_ADR &digital_dig2
 #define DIG_OUT_2      digital_dig2
 
+//HEADER  H5 PIN 1 P0.30-AIN6-AI6
+#define DIG_3_NODE DT_ALIAS(dg3)
+static const struct gpio_dt_spec digital_dig3 = GPIO_DT_SPEC_GET_OR(DIG_3_NODE, gpios, {0});
+#define DIG_OUT_3_ADR &digital_dig3
+#define DIG_OUT_3      digital_dig3
+
+
 //DIGITAL INPUT - BUTTON 0
 #define DIG_IN_0_NODE DT_ALIAS(in0)
 static const struct gpio_dt_spec digital_dig_in0 = GPIO_DT_SPEC_GET_OR(DIG_IN_0_NODE, gpios, {0});
@@ -151,8 +163,8 @@ static K_SEM_DEFINE(gps_init,0,1);
 // UART PORT DEFINITION ON app.overlay
 
 static const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
-
 static struct k_work_delayable uart_work;
+
 struct uart_data_t *buf_extra;
 uint32_t buff_extra_index=0;
 uint32_t buff_marker=0;
@@ -174,7 +186,7 @@ static const struct device *const async_adapter;
 
 
 //UART END
-
+void blink(uint8_t times);
 
 
 uint8_t lora_cycle_minute=0;
@@ -246,13 +258,14 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 	case UART_RX_RDY:
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
-	    printf("Dados Recebidos\n");
+	    blink(2);
 	   //START WITH $ CHARACTER
         if(buf->data[buf->len - 1]==0x24  && buff_marker==0){
 			buf_extra = k_malloc(sizeof(*buf_extra));
 			buff_extra_index=0;
 			buff_marker=1;
-			//blink(LED3,2);
+            blink(3);
+			
 		}
    
        //STOP WITH 0X0A
@@ -267,7 +280,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 				 k_free(buf_extra);
 			   }
 			   buff_marker=0;
-               
+               blink(4);
 			   //blink(LED4,2);
 			}
 		} 
@@ -321,7 +334,7 @@ static void uart_work_handler(struct k_work *item)
 	}
 	else
 	{
-		printk("Not able to allocate UART receive buffer - GPS\n");
+		LOG_WRN("Not able to allocate UART receive buffer - GPS\n");
 		k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
 		return;
 	}
@@ -329,7 +342,16 @@ static void uart_work_handler(struct k_work *item)
 	uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
 }
 
-static int uart_init(void)
+static bool uart_test_async_api(const struct device *dev)
+{
+	const struct uart_driver_api *api =
+			(const struct uart_driver_api *)dev->api;
+
+	return (api->callback_set != NULL);
+}
+
+
+static int uart_init_old(void)
 {
 
 	uart_irq_rx_enable(uart);
@@ -351,6 +373,109 @@ static int uart_init(void)
 
 	return 0;
 }
+
+static int uart_init(void)
+{
+	int err;
+	int pos;
+	struct uart_data_t *rx;
+	struct uart_data_t *tx;
+
+	if (!device_is_ready(uart)) {
+		return -ENODEV;
+	}
+
+	if (IS_ENABLED(CONFIG_USB_DEVICE_STACK)) {
+		err = usb_enable(NULL);
+		if (err && (err != -EALREADY)) {
+			LOG_ERR("Failed to enable USB");
+			return err;
+		}
+	}
+
+	rx = k_malloc(sizeof(*rx));
+	if (rx) {
+		rx->len = 0;
+	} else {
+		return -ENOMEM;
+	}
+
+	k_work_init_delayable(&uart_work, uart_work_handler);
+
+
+	if (IS_ENABLED(CONFIG_BT_NUS_UART_ASYNC_ADAPTER) && !uart_test_async_api(uart)) {
+		/* Implement API adapter */
+		uart_async_adapter_init(async_adapter, uart);
+		uart = async_adapter;
+	}
+
+	err = uart_callback_set(uart, uart_cb, NULL);
+	if (err) {
+		k_free(rx);
+		LOG_ERR("Cannot initialize UART callback");
+		return err;
+	}
+
+	if (IS_ENABLED(CONFIG_UART_LINE_CTRL)) {
+		LOG_INF("Wait for DTR");
+		while (true) {
+			uint32_t dtr = 0;
+
+			uart_line_ctrl_get(uart, UART_LINE_CTRL_DTR, &dtr);
+			if (dtr) {
+				break;
+			}
+			/* Give CPU resources to low priority threads. */
+			k_sleep(K_MSEC(100));
+		}
+		LOG_INF("DTR set");
+		err = uart_line_ctrl_set(uart, UART_LINE_CTRL_DCD, 1);
+		if (err) {
+			LOG_WRN("Failed to set DCD, ret code %d", err);
+		}
+		err = uart_line_ctrl_set(uart, UART_LINE_CTRL_DSR, 1);
+		if (err) {
+			LOG_WRN("Failed to set DSR, ret code %d", err);
+		}
+	}
+
+	tx = k_malloc(sizeof(*tx));
+
+	if (tx) {
+		pos = snprintf(tx->data, sizeof(tx->data),
+			       "Starting Nordic UART service example\r\n");
+
+		if ((pos < 0) || (pos >= sizeof(tx->data))) {
+			k_free(rx);
+			k_free(tx);
+			LOG_ERR("snprintf returned %d", pos);
+			return -ENOMEM;
+		}
+
+		tx->len = pos;
+	} else {
+		k_free(rx);
+		return -ENOMEM;
+	}
+
+	err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
+	if (err) {
+		k_free(rx);
+		k_free(tx);
+		LOG_ERR("Cannot display welcome message (err: %d)", err);
+		return err;
+	}
+
+	err = uart_rx_enable(uart, rx->data, sizeof(rx->data), 50);
+	if (err) {
+		LOG_ERR("Cannot enable uart reception (err: %d)", err);
+		/* Free the rx buffer only because the tx buffer will be handled in the callback */
+		k_free(rx);
+	}
+
+	return err;
+}
+
 
 
 //UART_FUNCTIONS END
@@ -411,15 +536,31 @@ void configure_digital_outputs(void)
 	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_2.port->name, DIG_OUT_2.pin);
     gpio_pin_set_dt(&digital_dig2, OFF);
 
+    gpio_pin_configure_dt(&digital_dig3, GPIO_OUTPUT);
+	printk("Set up Digital Output at %s pin %d\n", DIG_OUT_3.port->name, DIG_OUT_3.pin);
+    gpio_pin_set_dt(&digital_dig3, OFF);
 
 
 }
+
+void blink(uint8_t times){
+    uint8_t i=0;
+    while (i<times){
+        gpio_pin_set_dt(&digital_dig3, ON);
+        gpio_pin_set_dt(&digital_dig3, OFF);
+        i++;
+    }
+
+}
+
 
 void led_on_off(uint8_t status)
 {
    gpio_pin_set_dt(&led_0, status);
 	
 }
+
+
 
 
 #define FFT_SIZE 2048 //was 2048

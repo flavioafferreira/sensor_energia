@@ -11,6 +11,8 @@
 		dg0 = &dig0;
 		dg1 = &dig1;
 		dg2 = &dig2;
+		dg3 = &dig3;
+
 		adc = &adc;
 		in0 = &in0;
 		in1 = &in1;
@@ -52,7 +54,13 @@
 			label = "GPS-PWR  pin12";
 		
 	    };
+
+		dig3: dig_3 {
+			label = "HEADER PIN 1 AI6 AIN6 P0.30";
 		
+	    };
+
+
 	};
 
 
@@ -163,6 +171,10 @@
     gpios = <&gpio0 26 0>; // GPS-PWR  pin12
 };
 
+&dig3 {
+    gpios = <&gpio0 30 0>; // HEADER PIN 1 AI6 AIN6
+};
+
 
 
 &in0 {
@@ -255,7 +267,16 @@
 &dig2 {
 	status = "okay";
 };
+
+&dig3 {
+	status = "okay";
+};
+
+
 /delete-node/ &{/pin-controller/uart0_default/group1/};
+
+
+
 
 &arduino_header {
 	gpio-map = <0 0 &gpio0 3 0>,
@@ -332,4 +353,12 @@
 
 &uart0 {
 	current-speed = <9600>;
+};
+
+&spi1_sleep {
+	group1 {
+		psels = <NRF_PSEL(SPIM_SCK, 0, 20)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 0)>,
+				<NRF_PSEL(SPIM_MISO, 0, 22)>;
+	};
 };
