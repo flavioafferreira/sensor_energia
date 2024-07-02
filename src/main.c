@@ -1524,7 +1524,7 @@ void shoot_led_thread(void)
      }
 } 
 
-void lorawan_thread(void)
+void lorawan_thread_old(void)
 {
 /*
 https://community.st.com/t5/stm32-mcus-wireless/lorawan-device-join-process-can-succeed-only-follow-counter-dev/td-p/51393
@@ -1615,15 +1615,105 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
     }
 }
 
+void lorawan_thread(void)
+{
+/*
+https://community.st.com/t5/stm32-mcus-wireless/lorawan-device-join-process-can-succeed-only-follow-counter-dev/td-p/51393
+https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-a-non-volatile-memory-on-end-device/48995
 
+*/
+
+
+	//THIS THREAD MUST HAVE MAXIMUM PRIORITY(-9) IN ORDER TO RECEIVE DOWNLINK CALL BACK
+    uint64_t i=0,j=0;
+	int ret;
+    uint32_t random;
+    
+    lora_dev = DEVICE_DT_GET(DT_NODELABEL(lora0));
+
+	//LoRaMacTestSetDutyCycleOn(0);//disable dutyCycle for test
+
+    k_sem_take(&lorawan_init, K_FOREVER);  // WAIT FOR INIT
+	color(10);
+    printk("LoraWan Thread Started\n\n");
+    color(255);
+	if (!device_is_ready(lora_dev)) {
+		printk("%s: device not ready.\n\n", lora_dev->name);
+		return;
+	}
+    lorawan_set_region(LORAWAN_REGION_EU868);
+	
+	lorawan_register_downlink_callback(&downlink_cb);
+	lorawan_register_dr_changed_callback(lorwan_datarate_changed);
+	lorawan_set_conf_msg_tries(20); //was 10
+    
+    //random = sys_rand32_get()+1;
+    //dev_nonce = random & 0x0000FFFF;
+    join_cfg.otaa.dev_nonce = dev_nonce+10;    
+
+    while(1){
+     ret=-1;
+
+   	 while ( ret < 0 ) {
+    	    color(10);
+   	        printk("Joining network over OTAA\n\n");
+			color(255);
+            k_sleep(K_MSEC(3000));//was 1000
+            lorawan_start();
+			k_sleep(K_MSEC(2000));//was 500ms
+		    lorawan_enable_adr( true );
+
+            lorawan_set_datarate(LORAWAN_DR_4);
+   
+			join_cfg.mode = LORAWAN_CLASS_A; //was A
+			join_cfg.dev_eui = dev_eui;
+			join_cfg.otaa.join_eui = join_eui;
+			join_cfg.otaa.app_key = app_key;
+			join_cfg.otaa.nwk_key = app_key;
+        
+   		
+		    ret = lorawan_join(&join_cfg);
+
+            
+			 if (ret<0){
+                 led_period=LED_BLINK_FAST;
+                 led_period_off=LED_OFF_MULTIPLIER;
+				 color(10);
+				 printk("Failed..Waiting some seconds to try join again ret=%d\n\n",ret);
+                 join_cfg.otaa.dev_nonce=join_cfg.otaa.dev_nonce+INITIAL_DEV_NOUNCE;
+				 color(255);
+			     k_sleep(K_MSEC(60000));
+	         }
+			
+    
+      } 
+	  color(10);
+	  printk("Joined OTAA\n\n");
+      led_period=LED_BLINK_SLOW;
+      led_period_off=LED_OFF_MULTIPLIER_JOINED;
+	  color(255);
+	  Initial_Setup.joined=ON;
+      for(int i=0;i<=15;i++){Initial_Setup.nwk_key[i]=join_cfg.otaa.nwk_key[i];}
+      Initial_Setup.dev_nonce=join_cfg.otaa.dev_nonce;
+	  print_setup();
+
+	  	  
+	  lorawan_reconnect=0;
+
+      while (!lorawan_reconnect) {
+		  k_sem_take(&lorawan_tx, K_FOREVER);
+		  lorawan_tx_data();
+	    }
+    }
+}
 
 
 #ifdef NORMAL_STARTUP
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 //K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
-K_THREAD_DEFINE(lorawan_thread_id, 2048, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
-K_THREAD_DEFINE(downlink_thread_id, 1024, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
+K_THREAD_DEFINE(lorawan_thread_id, 4096, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
+K_THREAD_DEFINE(downlink_thread_id, 4096, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
 K_THREAD_DEFINE(gnss_write_thread_id, 1024, gnss_write_thread, NULL, NULL, NULL, 4, 0, 0);
 
 #endif
