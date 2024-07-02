@@ -223,28 +223,6 @@ struct _Downlink_ downlink_cmd_new;
 
 // DOWNLINK CHOOSE FIRST AND PORT2
 
-
-//UART_FUNCTIONS
-
-/*
-void uart_tx_msg(uint8_t Name[])
-{
-	struct uart_data_t *buf;
-	buf = k_malloc(sizeof(*buf));
-	uint16_t size = sizeof(Name);
-
-	uint8_t i = 0;
-	while (i < sizeof(Name))
-	{
-		buf->data[i] = Name[i];
-		i++;
-	}
-	buf->len = (sizeof(Name) - 1);
-	uart_tx(uart, buf->data, buf->len, SYS_FOREVER_MS);
-	k_free(buf);
-}
-*/
-
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
 
@@ -348,30 +326,6 @@ static bool uart_test_async_api(const struct device *dev)
 			(const struct uart_driver_api *)dev->api;
 
 	return (api->callback_set != NULL);
-}
-
-
-static int uart_init_old(void)
-{
-
-	uart_irq_rx_enable(uart);
-
-	struct uart_data_t *rx_uart;
-	struct uart_data_t *tx_uart;
-
-	if (!device_is_ready(uart))
-	{
-		return -ENODEV;
-	}
-
-	rx_uart = k_malloc(sizeof(*rx_uart));
-	rx_uart->len = 0;
-	k_work_init_delayable(&uart_work, uart_work_handler);
-
-	uart_callback_set(uart, uart_cb, NULL);
-	uart_rx_enable(uart, rx_uart->data, sizeof(rx_uart->data), UART_WAIT_FOR_RX);
-
-	return 0;
 }
 
 static int uart_init(void)
@@ -553,14 +507,11 @@ void blink(uint8_t times){
 
 }
 
-
 void led_on_off(uint8_t status)
 {
    gpio_pin_set_dt(&led_0, status);
 	
 }
-
-
 
 
 #define FFT_SIZE 2048 //was 2048
@@ -1523,97 +1474,6 @@ void shoot_led_thread(void)
         } 
      }
 } 
-
-void lorawan_thread_old(void)
-{
-/*
-https://community.st.com/t5/stm32-mcus-wireless/lorawan-device-join-process-can-succeed-only-follow-counter-dev/td-p/51393
-https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-a-non-volatile-memory-on-end-device/48995
-
-*/
-
-
-	//THIS THREAD MUST HAVE MAXIMUM PRIORITY(-9) IN ORDER TO RECEIVE DOWNLINK CALL BACK
-    uint64_t i=0,j=0;
-	int ret;
-    uint32_t random;
-    
-    lora_dev = DEVICE_DT_GET(DT_NODELABEL(lora0));
-
-	//LoRaMacTestSetDutyCycleOn(1);//disable dutyCycle for test
-
-    k_sem_take(&lorawan_init, K_FOREVER);  // WAIT FOR INIT
-	color(10);
-    printk("LoraWan Thread Started\n\n");
-    color(255);
-	if (!device_is_ready(lora_dev)) {
-		printk("%s: device not ready.\n\n", lora_dev->name);
-		return;
-	}
-    lorawan_set_region(LORAWAN_REGION_EU868);
-	
-	lorawan_register_downlink_callback(&downlink_cb);
-	lorawan_register_dr_changed_callback(lorwan_datarate_changed);
-	lorawan_set_conf_msg_tries(20); //was 10
-    
-    //random = sys_rand32_get()+1;
-    //dev_nonce = random & 0x0000FFFF;
-    join_cfg.otaa.dev_nonce = dev_nonce;    
-
-    while(1){
-     ret=-1;
-
-   	 while ( ret < 0 ) {
-    	    color(10);
-   	        printk("Joining network over OTAA\n\n");
-			color(255);
-            k_sleep(K_MSEC(3000));//was 1000
-            lorawan_start();
-			k_sleep(K_MSEC(2000));//was 500ms
-		    lorawan_enable_adr( true );
-   
-			join_cfg.mode = LORAWAN_CLASS_A; //was A
-			join_cfg.dev_eui = dev_eui;
-			join_cfg.otaa.join_eui = join_eui;
-			join_cfg.otaa.app_key = app_key;
-			join_cfg.otaa.nwk_key = app_key;
-   		
-		    ret = lorawan_join(&join_cfg);
-
-            
-			 if (ret<0){
-                 led_period=LED_BLINK_FAST;
-                 led_period_off=LED_OFF_MULTIPLIER;
-				 color(10);
-				 printk("Failed..Waiting some seconds to try join again\n\n");
-                 join_cfg.otaa.dev_nonce=join_cfg.otaa.dev_nonce+1;
-				 color(255);
-			     k_sleep(K_MSEC(60000));
-	         }
-			
-    
-      } 
-	  color(10);
-	  printk("Joined OTAA\n\n");
-      led_period=LED_BLINK_SLOW;
-      led_period_off=LED_OFF_MULTIPLIER_JOINED;
-	  color(255);
-	  Initial_Setup.joined=ON;
-      for(int i=0;i<=15;i++){Initial_Setup.nwk_key[i]=join_cfg.otaa.nwk_key[i];}
-      Initial_Setup.dev_nonce=join_cfg.otaa.dev_nonce;
-	  print_setup();
-
-	  	  
-	  lorawan_reconnect=0;
-
-      while (!lorawan_reconnect) {
-		//while (1) {
-	
-		  k_sem_take(&lorawan_tx, K_FOREVER);
-		  lorawan_tx_data();
-	    }
-    }
-}
 
 void lorawan_thread(void)
 {
