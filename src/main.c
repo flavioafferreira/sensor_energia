@@ -301,7 +301,6 @@ static void uart_cb_old(const struct device *dev, struct uart_event *evt, void *
 		break;
 	}
 }
-
 */
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
@@ -316,26 +315,39 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 	case UART_RX_RDY:
 
+   
+
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
   
         if (buf->data[buf->len - 1] == 0x24) {
                 buf->data[buf->len-1] = 0x00;
-                
+
+   
                 if (buf_copy) {
                     memcpy(buf_copy->data, buf->data, buf->len + 1);
                     buf_copy->len = buf->len;
                     k_fifo_put(&fifo_uart_rx_data, buf_copy);
                 } else {
                     printk("Erro ao alocar memória\n");
+                    uart_rx_disable(uart);
+                    k_free(buf);
+                    k_free(buf_copy);
+                    uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
                 }
+
+
+
+
                 buf->len = 0;
+                
                 uart_rx_disable(uart);
                 k_free(buf);
                 k_free(buf_copy);
                 
                 
-            }
+        }
+
         blink(3);
 		break;
 
@@ -375,8 +387,6 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 		break;
 	}
 }
-
-
 
 
 static void uart_work_handler(struct k_work *item)
@@ -509,8 +519,6 @@ static int uart_init(void)
 
 	return err;
 }
-
-
 
 //UART_FUNCTIONS END
 
