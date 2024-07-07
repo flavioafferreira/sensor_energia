@@ -30,7 +30,7 @@
 			"uart_async_adapter.h": "c"
 		},
 		"nrf-connect.debugging.bindings": {
-			"${workspaceFolder}/build": "Launch build"
+			"${workspaceFolder}/build": "Launch the active build configuration"
 		}
 	},
 	"launch": {

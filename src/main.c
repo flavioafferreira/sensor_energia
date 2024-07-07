@@ -308,18 +308,25 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 	ARG_UNUSED(dev);
 	
 	struct uart_data_t *buf;// = k_malloc(sizeof(struct uart_data_t));
+
 	uint8_t i = 0;
-    struct uart_data_t *buf_copy = k_malloc(sizeof(struct uart_data_t));
+    struct uart_data_t *buf_copy = k_malloc(sizeof(*buf_copy));
+
+    if (!buf_copy) {
+        printk("Erro BUFCopy\n");
+        return; // Se a alocação falhar, saia da função
+    }
+
+
+
 	switch (evt->type)
 	{
 
 	case UART_RX_RDY:
-
-   
-
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
-  
+        
+        
         if (buf->data[buf->len - 1] == 0x24) {
                 buf->data[buf->len-1] = 0x00;  //replace the character $ by 0x00
 
@@ -329,34 +336,24 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
                     buf_copy->len = buf->len;
                     k_fifo_put(&fifo_uart_rx_data, buf_copy);
                     k_free(buf_copy);
+                    
 
                 } else {
-                    printk("Erro ao alocar memória\n");
-                    //uart_rx_disable(uart);
-                    //k_free(buf);
-                    //k_free(buf_copy);
-                    //uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+                    printk("Erro ao alocar memória B\n");
                 }
-
-
-
-
-                //buf->len = 0;
-                
                 uart_rx_disable(uart);
-                //k_free(buf);
-                //k_free(buf_copy);
-                
-                
         }
 
         blink(3);
 		break;
 
+
+
+
 	case UART_RX_DISABLED:
 
 		// blink(LED4,4);
-		buf = k_malloc(sizeof(*buf)); // THE SIZE IS 92 BYTES
+		//buf = k_malloc(sizeof(*buf)); 
 		if (buf)
 		{
 			buf->len = 0;
@@ -373,7 +370,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 		break;
 
 	case UART_RX_BUF_REQUEST:
-		buf = k_malloc(sizeof(*buf));
+		//buf = k_malloc(sizeof(*buf));
 		buf->len = 0;
 		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
 		break;
@@ -391,6 +388,12 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 		break;
 	}
+
+
+	
+
+
+
 }
 
 
@@ -405,6 +408,7 @@ static void uart_work_handler(struct k_work *item)
 	else
 	{
 		LOG_WRN("Not able to allocate UART receive buffer - GPS\n");
+        
 		k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
 		return;
 	}
