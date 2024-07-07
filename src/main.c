@@ -307,7 +307,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 	ARG_UNUSED(dev);
 	
-	struct uart_data_t *buf = k_malloc(sizeof(struct uart_data_t));
+	struct uart_data_t *buf;// = k_malloc(sizeof(struct uart_data_t));
 	uint8_t i = 0;
     struct uart_data_t *buf_copy = k_malloc(sizeof(struct uart_data_t));
 	switch (evt->type)
@@ -321,29 +321,31 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 		buf->len += evt->data.rx.len;
   
         if (buf->data[buf->len - 1] == 0x24) {
-                buf->data[buf->len-1] = 0x00;
+                buf->data[buf->len-1] = 0x00;  //replace the character $ by 0x00
 
    
                 if (buf_copy) {
                     memcpy(buf_copy->data, buf->data, buf->len + 1);
                     buf_copy->len = buf->len;
                     k_fifo_put(&fifo_uart_rx_data, buf_copy);
+                    k_free(buf_copy);
+
                 } else {
                     printk("Erro ao alocar memória\n");
-                    uart_rx_disable(uart);
-                    k_free(buf);
-                    k_free(buf_copy);
-                    uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+                    //uart_rx_disable(uart);
+                    //k_free(buf);
+                    //k_free(buf_copy);
+                    //uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
                 }
 
 
 
 
-                buf->len = 0;
+                //buf->len = 0;
                 
                 uart_rx_disable(uart);
-                k_free(buf);
-                k_free(buf_copy);
+                //k_free(buf);
+                //k_free(buf_copy);
                 
                 
         }
@@ -383,6 +385,9 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 		{
 			k_free(buf);
 		}
+	
+
+
 
 		break;
 	}

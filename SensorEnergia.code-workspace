@@ -2,10 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"name": "test_peripheral_uart",
-			"path": "../test_peripheral_uart"
 		}
 	],
 	"settings": {
@@ -40,6 +36,7 @@
 	"launch": {
 		"version": "0.2.0",
 		"configurations": [
+
 			{
 				"type": "nrf-connect",
 				"request": "launch",
