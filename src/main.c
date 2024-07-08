@@ -247,6 +247,7 @@ static void uart_cb_old(const struct device *dev, struct uart_event *evt, void *
             blink(3);
 		}
    
+   
        //STOP WITH 0X0A
         if(buff_marker==1 && (buff_extra_index<(sizeof(*buf)-1)) ){
 		    buf_extra->data[buff_extra_index++]=buf->data[buf->len - 1];
