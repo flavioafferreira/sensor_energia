@@ -173,11 +173,12 @@ uint32_t buff_marker=0;
 static K_FIFO_DEFINE(fifo_uart_tx_data);
 static K_FIFO_DEFINE(fifo_uart_rx_data);
 
+
 static K_FIFO_DEFINE(command_rx);
 static K_FIFO_DEFINE(command_tx);
 
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
-#define UART_WAIT_FOR_RX 100000
+#define UART_WAIT_FOR_RX 50000
 
 #if CONFIG_BT_NUS_UART_ASYNC_ADAPTER
 UART_ASYNC_ADAPTER_INST_DEFINE(async_adapter);
@@ -224,178 +225,80 @@ struct _Downlink_ downlink_cmd_new;
 
 // DOWNLINK CHOOSE FIRST AND PORT2
 
-/*
-static void uart_cb_old(const struct device *dev, struct uart_event *evt, void *user_data)
-{
-
-	ARG_UNUSED(dev);
-	static bool disable_req;
-	struct uart_data_t *buf;
-	uint8_t i = 0;
-	switch (evt->type)
-	{
-
-	case UART_RX_RDY:
-		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
-		buf->len += evt->data.rx.len;
-	    //blink(2);
-	   //START WITH $ CHARACTER
-        if(buf->data[buf->len - 1]==0x24  && buff_marker==0){
-			buf_extra = k_malloc(sizeof(*buf_extra));
-			buff_extra_index=0;
-			buff_marker=1;
-            blink(3);
-		}
-   
-   
-       //STOP WITH 0X0A
-        if(buff_marker==1 && (buff_extra_index<(sizeof(*buf)-1)) ){
-		    buf_extra->data[buff_extra_index++]=buf->data[buf->len - 1];
-			if(buf->data[buf->len - 1]==0x0A){
-			   buf_extra->data[buff_extra_index++] = 0x00;
-			   buf_extra->len = buff_extra_index;
-			   if(buf_extra->len>0) {
-				 k_fifo_put(&fifo_uart_rx_data, buf_extra); // TRANSFER TO FIFO
-				 k_free(buf_extra);
-			   }
-			   buff_marker=0;
-               blink(4);
-			   //blink(LED4,2);
-			}
-		} 
- 		
-		break;
-
-	case UART_RX_DISABLED:
-
-		// blink(LED4,4);
-		buf = k_malloc(sizeof(*buf)); // THE SIZE IS 92 BYTES
-		if (buf)
-		{
-			buf->len = 0;
-		}
-		else
-		{
-			k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
-			return;
-		}
-
-		buf->len = 0;
-		uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
-
-		break;
-
-	case UART_RX_BUF_REQUEST:
-		buf = k_malloc(sizeof(*buf));
-		buf->len = 0;
-		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
-		break;
-
-	case UART_RX_BUF_RELEASED:
-
-		buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
-		if (buf->len > 0)
-		{
-			k_free(buf);
-		}
-
-		break;
-	}
-}
-*/
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
 
 	ARG_UNUSED(dev);
-	
-	struct uart_data_t *buf;// = k_malloc(sizeof(struct uart_data_t));
-
+	struct uart_data_t *buf;
 	uint8_t i = 0;
-    struct uart_data_t *buf_copy = k_malloc(sizeof(*buf_copy));
-
-    if (!buf_copy) {
-        printk("Erro BUFCopy\n");
-        return; // Se a alocação falhar, saia da função
-    }
-
-
+    static bool disable_req;
 
 	switch (evt->type)
 	{
 
     case UART_RX_BUF_REQUEST:
-		//buf = k_malloc(sizeof(*buf));
-		buf->len = 0;
-		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
+		buf = k_malloc(sizeof(*buf));
+		if (buf) {
+			buf->len = 0;
+			uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
+		} else {
+			LOG_WRN("Not able to allocate UART receive buffer");
+		}
 		break;
 
 
 	case UART_RX_RDY:
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
-        
-        
+
+      	if (disable_req) {
+			return;
+		}  
+        /*
         if (buf->data[buf->len - 1] == 0x24) {   //0x24=$
                 buf->data[buf->len-1] = 0x00;  //replace the character $ by 0x00
-
-   
-                if (buf_copy) {
-                    memcpy(buf_copy->data, buf->data, buf->len + 1);
-                    buf_copy->len = buf->len;
-                    k_fifo_put(&fifo_uart_rx_data, buf_copy);
-                    k_free(buf_copy);
-                    
-
-                } else {
-                    printk("Erro ao alocar memória B\n");
-                }
                 uart_rx_disable(uart);
         }
+        */
+        if (buf->data[buf->len - 1] == 0x0a) {   //0x24=$
+                buf->data[buf->len-2] = 0x2c;  //replace the character 0x0d by ,
+                buf->data[buf->len-1] = 0x00;  //replace the character 0x0a by 0x00
+            
+                uart_rx_disable(uart);
+        }
+
+
 
         blink(3);
 		break;
 
-
-
-
-	case UART_RX_DISABLED:
-
-		// blink(LED4,4);
-		//buf = k_malloc(sizeof(*buf)); 
-		if (buf)
-		{
-			buf->len = 0;
-		}
-		else
-		{
-			k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
-			return;
-		}
-
-		buf->len = 0;
-		uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
-
-		break;
-
-	
 	case UART_RX_BUF_RELEASED:
 
 		buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
-		if (buf->len > 0)
-		{
+
+		if (buf->len > 0) {
+            k_fifo_put(&fifo_uart_rx_data, buf);
+		} else {
 			k_free(buf);
 		}
-	
 
+        break;
 
+	case UART_RX_DISABLED:
+        disable_req = false;
+		// blink(LED4,4);
+		buf = k_malloc(sizeof(*buf)); 
+		if (buf){
+			buf->len = 0;
+		 }else{
+			  k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+			  return;
+		    }
 
+		buf->len = 0;
+		uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
 		break;
 	}
-
-
-	
-
-
 
 }
 
@@ -1131,6 +1034,8 @@ int main(){
   
   k_sem_give(&lorawan_init);  //START HELIUM JOIN
   k_sem_give(&timer_init);
+
+  
    while (1)
     {
         k_msleep(5000);
@@ -1553,12 +1458,17 @@ void gnss_write_thread(void){
     }
     initial_buf->len = 0;
 
+    printf("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*35\n");
+
     while (1) {
         struct uart_data_t *buf2a = k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
         if (buf2a) {
             blink(4);
             if (buf2a->len > 0) {
-                printf("length: %u %s\n", buf2a->len, buf2a->data);
+                //printf("length: %u %s\n", buf2a->len, buf2a->data);
+
+                //printf("%.*s\n",buf2a->len,buf2a->data);
+                
                 blink(5);
             }
             k_free(buf2a);
@@ -1688,8 +1598,6 @@ void gnss_write_thread(void){
 	}
     */
 }
-
-
 
 void downlink_thread(void){
     uint8_t cmd=0;
