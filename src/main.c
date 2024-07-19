@@ -323,12 +323,19 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 	switch (evt->type)
 	{
 
+    case UART_RX_BUF_REQUEST:
+		//buf = k_malloc(sizeof(*buf));
+		buf->len = 0;
+		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
+		break;
+
+
 	case UART_RX_RDY:
 		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
 		buf->len += evt->data.rx.len;
         
         
-        if (buf->data[buf->len - 1] == 0x24) {
+        if (buf->data[buf->len - 1] == 0x24) {   //0x24=$
                 buf->data[buf->len-1] = 0x00;  //replace the character $ by 0x00
 
    
@@ -370,12 +377,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 		break;
 
-	case UART_RX_BUF_REQUEST:
-		//buf = k_malloc(sizeof(*buf));
-		buf->len = 0;
-		uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
-		break;
-
+	
 	case UART_RX_BUF_RELEASED:
 
 		buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
@@ -396,7 +398,6 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 
 }
-
 
 static void uart_work_handler(struct k_work *item)
 {
