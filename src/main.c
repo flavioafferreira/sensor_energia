@@ -157,6 +157,7 @@ Sensor_Status_ sensor_status;
 
 // SEMAPHORES FOR THREADS
 static K_SEM_DEFINE(gps_init,0,1);
+static K_SEM_DEFINE(uart_tx_init,0,1);
 
 
 // UART PORT DEFINITION ON app.overlay
@@ -164,15 +165,22 @@ static K_SEM_DEFINE(gps_init,0,1);
 static const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 static struct k_work_delayable uart_work;
 
+static const struct device *uart1 = DEVICE_DT_GET(DT_NODELABEL(uart1));
+static struct k_work_delayable uart_work1;
+
+
+
 struct uart_data_t *buf_extra;
 uint32_t buff_extra_index=0;
 uint32_t buff_marker=0;
 
-
+void tx_function(void);
+void tx_function_msg(char *msg);
+unsigned char calculate_checksum(const char *sentence);
 
 static K_FIFO_DEFINE(fifo_uart_tx_data);
 static K_FIFO_DEFINE(fifo_uart_rx_data);
-
+static K_SEM_DEFINE(gps_uart_tx, 0, 1); //uplink
 
 static K_FIFO_DEFINE(command_rx);
 static K_FIFO_DEFINE(command_tx);
@@ -223,6 +231,19 @@ static K_FIFO_DEFINE(my_fifo_downlink);
 struct _Downlink_Fifo downlink_cmd;
 struct _Downlink_ downlink_cmd_new;
 
+
+unsigned char calculate_checksum(const char *sentence) {
+    unsigned char checksum = 0;
+    int i = 1; // Start after the '$'
+
+    while (sentence[i] != '*' && sentence[i] != '\0') {
+        checksum ^= sentence[i];
+        i++;
+    }
+    return checksum;
+}
+
+
 // DOWNLINK CHOOSE FIRST AND PORT2
 
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
@@ -254,12 +275,6 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
       	if (disable_req) {
 			return;
 		}  
-        /*
-        if (buf->data[buf->len - 1] == 0x24) {   //0x24=$
-                buf->data[buf->len-1] = 0x00;  //replace the character $ by 0x00
-                uart_rx_disable(uart);
-        }
-        */
         if (buf->data[buf->len - 1] == 0x0a) {   //0x24=$
                 buf->data[buf->len-2] = 0x2c;  //replace the character 0x0d by ,
                 buf->data[buf->len-1] = 0x00;  //replace the character 0x0a by 0x00
@@ -298,7 +313,14 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 		buf->len = 0;
 		uart_rx_enable(uart, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
 		break;
+
+    case UART_TX_DONE:
+        k_sem_give(&gps_uart_tx);  
+        break;
 	}
+
+ 
+
 
 }
 
@@ -394,34 +416,7 @@ static int uart_init(void)
 			LOG_WRN("Failed to set DSR, ret code %d", err);
 		}
 	}
-
-	tx = k_malloc(sizeof(*tx));
-
-	if (tx) {
-		pos = snprintf(tx->data, sizeof(tx->data),
-			       "Starting Nordic UART service example\r\n");
-
-		if ((pos < 0) || (pos >= sizeof(tx->data))) {
-			k_free(rx);
-			k_free(tx);
-			LOG_ERR("snprintf returned %d", pos);
-			return -ENOMEM;
-		}
-
-		tx->len = pos;
-	} else {
-		k_free(rx);
-		return -ENOMEM;
-	}
-
-	err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
-	if (err) {
-		k_free(rx);
-		k_free(tx);
-		LOG_ERR("Cannot display welcome message (err: %d)", err);
-		return err;
-	}
-
+    
     
 	err = uart_rx_enable(uart, rx->data, sizeof(rx->data), UART_WAIT_FOR_RX);
     
@@ -432,7 +427,196 @@ static int uart_init(void)
 	}
 
 	return err;
+    
 }
+
+
+//UART1
+
+static void uart_cb_1(const struct device *dev, struct uart_event *evt, void *user_data)
+{
+
+	ARG_UNUSED(dev);
+	struct uart_data_t *buf;
+	uint8_t i = 0;
+    static bool disable_req;
+
+	switch (evt->type)
+	{
+
+    case UART_RX_BUF_REQUEST:
+		buf = k_malloc(sizeof(*buf));
+		if (buf) {
+			buf->len = 0;
+			uart_rx_buf_rsp(uart1, buf->data, sizeof(buf->data));
+		} else {
+			LOG_WRN("Not able to allocate UART receive buffer");
+		}
+		break;
+
+
+	case UART_RX_RDY:
+		buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
+		buf->len += evt->data.rx.len;
+
+      	if (disable_req) {
+			return;
+		}  
+        if (buf->data[buf->len - 1] == 0x0a) {   //0x24=$
+                buf->data[buf->len-2] = 0x2c;  //replace the character 0x0d by ,
+                buf->data[buf->len-1] = 0x00;  //replace the character 0x0a by 0x00
+            
+                uart_rx_disable(uart1);
+        }
+
+        blink(3);
+		break;
+
+	case UART_RX_BUF_RELEASED:
+
+		buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
+
+		if (buf->len > 0) {
+            k_fifo_put(&fifo_uart_rx_data, buf);
+		} else {
+			k_free(buf);
+		}
+
+        break;
+
+	case UART_RX_DISABLED:
+        disable_req = false;
+		// blink(LED4,4);
+		buf = k_malloc(sizeof(*buf)); 
+		if (buf){
+			buf->len = 0;
+		 }else{
+			  k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+			  return;
+		    }
+
+		buf->len = 0;
+		uart_rx_enable(uart1, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+		break;
+
+    case UART_TX_DONE:
+      
+        break;
+	}
+
+ 
+
+
+}
+
+static void uart_work_handler_1(struct k_work *item)
+{
+	struct uart_data_t *buf;
+	buf = k_malloc(sizeof(*buf)); // SIZE IS 92 BYTES
+	if (buf)
+	{
+		buf->len = 0;
+	}
+	else
+	{
+		LOG_WRN("Not able to allocate UART receive buffer - GPS\n");
+        
+		k_work_reschedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+		return;
+	}
+
+	uart_rx_enable(uart1, buf->data, sizeof(buf->data), UART_WAIT_FOR_RX);
+    
+}
+
+static bool uart_test_async_api_1(const struct device *dev)
+{
+	const struct uart_driver_api *api =
+			(const struct uart_driver_api *)dev->api;
+
+	return (api->callback_set != NULL);
+}
+
+static int uart_init_1(void)
+{
+	int err;
+	int pos;
+	struct uart_data_t *rx;
+	struct uart_data_t *tx;
+
+	if (!device_is_ready(uart1)) {
+		return -ENODEV;
+	}
+
+	if (IS_ENABLED(CONFIG_USB_DEVICE_STACK)) {
+		err = usb_enable(NULL);
+		if (err && (err != -EALREADY)) {
+			LOG_ERR("Failed to enable USB");
+			return err;
+		}
+	}
+
+	rx = k_malloc(sizeof(*rx));
+	if (rx) {
+		rx->len = 0;
+	} else {
+		return -ENOMEM;
+	}
+
+	k_work_init_delayable(&uart_work, uart_work_handler_1);
+
+
+	if (IS_ENABLED(CONFIG_BT_NUS_UART_ASYNC_ADAPTER) && !uart_test_async_api(uart1)) {
+		/* Implement API adapter */
+		uart_async_adapter_init(async_adapter, uart1);
+		uart = async_adapter;
+	}
+
+	err = uart_callback_set(uart1, uart_cb_1, NULL);
+	if (err) {
+		k_free(rx);
+		LOG_ERR("Cannot initialize UART callback");
+		return err;
+	}
+
+	if (IS_ENABLED(CONFIG_UART_LINE_CTRL)) {
+		//printk("Wait for DTR");
+		while (true) {
+			uint32_t dtr = 0;
+
+			uart_line_ctrl_get(uart1, UART_LINE_CTRL_DTR, &dtr);
+			if (dtr) {
+				break;
+			}
+			/* Give CPU resources to low priority threads. */
+			k_sleep(K_MSEC(100));
+		}
+		//printk("DTR set");
+		err = uart_line_ctrl_set(uart1, UART_LINE_CTRL_DCD, 1);
+		if (err) {
+			LOG_WRN("Failed to set DCD, ret code %d", err);
+		}
+		err = uart_line_ctrl_set(uart1, UART_LINE_CTRL_DSR, 1);
+		if (err) {
+			LOG_WRN("Failed to set DSR, ret code %d", err);
+		}
+	}
+    
+	err = uart_rx_enable(uart1, rx->data, sizeof(rx->data), UART_WAIT_FOR_RX);
+    
+	if (err) {
+		LOG_ERR("Cannot enable uart reception (err: %d)", err);
+		/* Free the rx buffer only because the tx buffer will be handled in the callback */
+		k_free(rx);
+	}
+
+	return err;
+   
+}
+
+
+
+
 
 //UART_FUNCTIONS END
 
@@ -1011,15 +1195,21 @@ void reboot_counter_read(void){
 
 }
 
-#ifdef NORMAL_STARTUP
 int main(){
   uint8_t mensagem[]="ABCDEF";  
   memory_init();
   reboot_counter_read();
   configure_digital_outputs();
   k_fifo_init(&fifo_uart_rx_data);
+  k_fifo_init(&fifo_uart_tx_data);
+
 
   uart_init();
+  uart_init_1();
+  
+
+
+
   uint32_t counter=0;
   led_on_off(1);
   //LOG_INF("Start - turn on the UART \n");
@@ -1035,7 +1225,17 @@ int main(){
   k_sem_give(&lorawan_init);  //START HELIUM JOIN
   k_sem_give(&timer_init);
 
+
+  k_sem_give(&uart_tx_init); //start the tx function
   
+
+  tx_function_msg("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+  tx_function_msg("$PQTXT,W,0,1");
+  
+  //tx_function_msg("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*35\r\n");
+  // $PQTXT,W,1,1*22
+  // $PQTXT,W,0,1
+
    while (1)
     {
         k_msleep(5000);
@@ -1046,38 +1246,6 @@ int main(){
     }
 }
 
-#else
-int main(){
-  configure_digital_outputs();
-  uint8_t status=0;
-  led_on_off(1);
-  LOG_INF("Test Start \n");
-  k_msleep(2000);
-  led_on_off(0);
-
-   while (1)
-    {
-        status=0;
-        gpio_pin_set_dt(&digital_dig0, status);
-        gpio_pin_set_dt(&digital_dig1, status);
-        gpio_pin_set_dt(&digital_dig2, status);
-        led_on_off(status);
-        k_msleep(200);
-        status=255;
-        gpio_pin_set_dt(&digital_dig0, status);
-        gpio_pin_set_dt(&digital_dig1, status);
-        gpio_pin_set_dt(&digital_dig2, status);
-        led_on_off(status);
-        k_msleep(200);
-        
-
-
-    }
-
-
-}
-
-#endif
 
 void conversion_change_channel(uint8_t new_channel){
     nrfx_err_t status;
@@ -1397,56 +1565,69 @@ void gnss_write_thread_old(void){
 }
 */
 
+
+void fill_empty_fields_with_zero(char *sentence) {
+    int len = strlen(sentence);
+    for (int i = 0; i < len; i++) {
+        // Se o caractere atual é uma vírgula e o próximo também é uma vírgula, ou se está no final da string
+        if ((sentence[i] == ',' && (i == len - 1 || sentence[i + 1] == ',' || sentence[i + 1] == '*')) ||
+            (sentence[i] == ',' && i == len - 1)) {
+            memmove(&sentence[i + 2], &sentence[i + 1], len - i); // Move a string para a direita
+            sentence[i + 1] = '0'; // Insere '0' no campo vazio
+            len++; // Aumenta o comprimento da string
+        }
+    }
+}
+
+void parse_nmea_sentence(const char *sentence, char fields[][20], int *field_count) {
+    int i = 0;
+    int start = 0;
+    int end = 0;
+    int len = strlen(sentence);
+
+    // Ignorar o caractere '$' inicial
+    if (sentence[0] == '$') {
+        start = 1;
+    }
+
+    *field_count = 0;
+
+    while (start < len) {
+        if (sentence[start] == ',' || sentence[start] == '*') {
+            // Campo vazio
+            fields[i][0] = '\0';
+            i++;
+            start++;
+        } else {
+            end = start;
+            while (end < len && sentence[end] != ',' && sentence[end] != '*') {
+                end++;
+            }
+
+            int field_len = end - start;
+            if (field_len > 19) {
+                field_len = 19; // Evitar buffer overflow
+            }
+
+            strncpy(fields[i], &sentence[start], field_len);
+            fields[i][field_len] = '\0';
+            i++;
+            start = end + 1;
+        }
+    }
+
+    *field_count = i;
+}
+
+
+
 void gnss_write_thread(void){
-    uint8_t debug = ON;
-	uint8_t value;
-	uint32_t i = 0, j = 1, k = 0, h = 0, g = 0, index = 0, bfcnt = 0;
 	uint64_t time = k_uptime_get();
-	uint8_t state = 0, pkt_init = 0;
-	static uint8_t buffer[BUFF_SIZE];
+     
+    char fields[20][20]; // Array para armazenar os campos
+    int field_count = 0;
 
-    //http://aprs.gids.nl/nmea/     sentences descriptions
-    //const char nmea_id[10] = "$GPGGA"; //capture this sentence
-    const char nmea_id[10] = "$GPRMC"; //capture this sentence
-	
-
-    static char *field[20];
-    char *ret;
-    char marker[2]="\n";
-    //marker[0]=0x0d;
-
-	uint8_t part[2];
-
-    // variaveis
-
- 
-   //char str[] = "$GNRMC,193326.076,V,3150.7822,N,11711.9278,E,1.00,2.00,040724,CA1,CA2,N,V*21";
-   char str[] = "$GNRMC,193326.076,V,,,,,0.00,0.00,040724,,,N,V*21";
-
-
-   #define FIELD_SIZE 50
-   #define FIELD_SIZE_SMALL 5
-    char message_id[FIELD_SIZE];
-    char utc_time[FIELD_SIZE];
-    char status[FIELD_SIZE];
-    float latitude;
-    char ns_indicator[FIELD_SIZE];
-    float longitude;
-    char ew_indicator[FIELD_SIZE];
-    float speed_over_ground;
-    float course_over_ground;
-    char date[FIELD_SIZE];
-    char magnetic_variation[FIELD_SIZE];
-    char mode[FIELD_SIZE];
-    char fix[FIELD_SIZE];
-    char checksum[FIELD_SIZE];
-    
-    // Ponteiro para os tokens
-    char *token;
-    token = k_malloc(100);
-    // Delimitador
-    const char delimiter[2] = ",";
-	struct uart_data_t *buf2a;
+    struct uart_data_t *buf2a;
 	buf2a = k_malloc(sizeof(*buf2a));
 
 	k_sem_take(&gps_init,K_FOREVER);
@@ -1457,146 +1638,35 @@ void gnss_write_thread(void){
         return;
     }
     initial_buf->len = 0;
-
-    printf("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*35\n");
-
+ 
+   
     while (1) {
+        field_count=0;
         struct uart_data_t *buf2a = k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
         if (buf2a) {
             blink(4);
             if (buf2a->len > 0) {
                 //printf("length: %u %s\n", buf2a->len, buf2a->data);
+                printf("Dados: %.*s\n",buf2a->len,buf2a->data);
 
-                //printf("%.*s\n",buf2a->len,buf2a->data);
-                
+    fill_empty_fields_with_zero(buf2a->data);
+
+    parse_nmea_sentence(buf2a->data, fields, &field_count);
+
+    // Imprimir os campos separados
+    for (int i = 0; i < field_count; i++) {
+        printf("Field %d: '%s'\n", i, fields[i]);
+    }
+
+
+
                 blink(5);
             }
             k_free(buf2a);
         }
     }
-
-
-
-
-
-
-    /*
-	while(1){
-
-	   buf2a = k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
-       blink(4);
-       
- 
-	   state = 0;
-       if (buf2a->len > 0){
-          printk("%s", buf2a->data);
-       }
-
-      
-		if (buf2a->len > 0)
-		{
-			k = (buf2a->len);
-
-			i = 0;
-			index = 0;
-			//blink(LED4,2);
-           
-			while (i < k && pkt_init == 0)
-			{
-				// printf("%02X ",buf2a->data[i]);
-				switch (buf2a->data[i])
-				{
-				case 0x24: //$
-					state = 1;
-					break;
-				case 0x47: // G
-					if (state == 1)state = 2;
-					break;
-				case 0x4E: // N
-					if (state == 2)state = 3;
-
-					break;
-				case 0x52: // R
-					if (state == 3)state = 4;
-
-					break;
-				case 0x4D: // M
-					if (state == 4)state = 5;
-
-					break;
-				case 0x43: // C
-					if (state == 5){
-						state = 6;
-					    index = i - 5;
-					}
-					break;
-				}
-				i++;
-                
-			}
-
-			if (state == 6 && pkt_init == 0){
-                printk("%s", buf2a->data);
-                state = 0;
-                strcpy(token,' ');
-                token = strtok(buf2a->data, delimiter);
-                strcpy(message_id, token);
-                token = strtok(NULL, delimiter);
-                strcpy(utc_time, token);
-                token = strtok(NULL, delimiter);
-                strcpy(status, token);
-                token = strtok(NULL, delimiter);
-                latitude = atof(token);
-                token = strtok(NULL, delimiter);
-                strcpy(ns_indicator, token);
-                token = strtok(NULL, delimiter);
-                longitude = atof(token);
-                token = strtok(NULL, delimiter);
-                strcpy(ew_indicator, token);
-                token = strtok(NULL, delimiter);
-                speed_over_ground = atof(token);
-                token = strtok(NULL, delimiter);
-                course_over_ground = atof(token);
-                token = strtok(NULL, delimiter);
-                strcpy(date, token);
-                token = strtok(NULL, delimiter);
-                strcpy(magnetic_variation, token);
-                token = strtok(NULL, delimiter);
-                strcpy(mode, token);
-                token = strtok(NULL, delimiter);
-                strcpy(fix, token);
-                token = strtok(NULL, delimiter);
-                strcpy(checksum, token);
-
-                
-                
-                printk("Message ID: %s\n", message_id);
-                printk("UTC time: %s\n", utc_time);
-                printk("Status: %s\n", status);
-                printk("Latitude: %f\n", latitude);
-                printk("N/S indicator: %s\n", ns_indicator);
-                printk("Longitude: %f\n", longitude);
-                printk("E/W indicator: %s\n", ew_indicator);
-                printk("Speed over ground: %f\n", speed_over_ground);
-                printk("Course over ground: %f\n", course_over_ground);
-                printk("Date: %s\n", date);
-                printk("Magnetic Variation: %s\n", magnetic_variation);
-                printk("Mode: %s\n", mode);
-                printk("Fix: %s\n", fix);
-                
-                printk("Checksum: %s\n", checksum);
-                
-                k_sleep(K_MSEC(5000));
-                
-
-
-			}
-		}
-        
-			
-
-	}
-    */
+   
+     
 }
 
 void downlink_thread(void){
@@ -1775,8 +1845,60 @@ https://www.thethingsnetwork.org/forum/t/lorawan-1-1-devnonce-must-be-stored-in-
     }
 }
 
+void tx_function(void){
+  struct uart_data_t *tx;
+  int pos;
+
+  tx = k_malloc(sizeof(*tx));
+  pos = snprintf(tx->data, sizeof(tx->data), "$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*35\r\n");
+  tx->len=pos;
+  k_fifo_put(&fifo_uart_tx_data, tx);
+
+}
+
+
+void tx_function_msg(char *msg){
+  struct uart_data_t *tx;
+  int pos;
+
+  
+  unsigned char checksum = calculate_checksum(msg);
+  size_t msg_len = strlen(msg);
+  char *new_msg = (char *)malloc(msg_len + 4); // "*XX\0" -> 4 characters
+  strcpy(new_msg, msg);
+  sprintf(new_msg + msg_len, "*%02X\r\n", checksum);
+
+  tx = k_malloc(sizeof(*tx));
+  pos = snprintf(tx->data, sizeof(tx->data), new_msg);
+  tx->len=pos;
+  k_fifo_put(&fifo_uart_tx_data, tx);
+  free(new_msg);
+}
+
+void uart_tx_thread(void){
+
+  int err;
+  int pos;
+  struct uart_data_t *tx;
+  tx = k_malloc(sizeof(*tx));
+
+  //https://en.wikipedia.org/wiki/Escape_sequences_in_C
+
+   k_sem_take(&uart_tx_init,K_FOREVER);
+   while(1){
+	   
+       tx = k_fifo_get(&fifo_uart_tx_data, K_FOREVER);
+	   err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
+       k_sem_take(&gps_uart_tx,K_FOREVER);
+       
+   }
+
+
+}
+
 
 #ifdef NORMAL_STARTUP
+K_THREAD_DEFINE(uart_tx_thread_id, 1024, uart_tx_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_led_thread_id, 1024, shoot_led_thread, NULL, NULL, NULL, 6, 0, 0);
 K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NULL, NULL, NULL, 4, 0, 0);
 //K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
