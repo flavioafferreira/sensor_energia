@@ -12,7 +12,7 @@
 #define MODULE_3 1
 
 //LORAWAN INITIAL_NUMBER
-#define INITIAL_DEV_NOUNCE 203
+#define INITIAL_DEV_NOUNCE 603
 
 
 /*
@@ -460,4 +460,19 @@ struct uart_data_t
 	uint8_t data[UART_BUF_SIZE];
 	uint16_t len;
 };
+
+typedef struct _DateTime_{
+    int day;
+    int month;
+    int year;
+    int hour;
+    int minute;
+    int second;
+} DateTime;
+
+
+typedef struct {
+    float latitude;
+    float longitude;
+} Coordinates;
 

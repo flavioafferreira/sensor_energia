@@ -1565,6 +1565,52 @@ void gnss_write_thread_old(void){
 }
 */
 
+float convert_to_float(const char *str) {
+    return str != NULL ? strtof(str, NULL) : 0.0;
+}
+
+// Função para extrair coordenadas de uma sentença NMEA
+Coordinates extract_coordinates(const char *lat_str, const char *lon_str) {
+    Coordinates coords = {0.0, 0.0}; // Inicializa as coordenadas com 0.0
+
+    if (lat_str != NULL && lon_str != NULL) {
+        coords.latitude = convert_to_float(lat_str);
+        coords.longitude = convert_to_float(lon_str);
+    }
+
+    return coords;
+}
+
+
+
+
+// Função para extrair e converter campos em data e hora
+DateTime extract_date_time(const char *time_str, const char *date_str) {
+    DateTime dt = {0}; // Inicializa todos os campos com 0
+
+    // Verifica se os strings são válidos
+    if (time_str == NULL || date_str == NULL) {
+        printf("Invalid input\n");
+        return dt;
+    }
+
+    // Extrai e converte a hora, minuto e segundo
+    if (strlen(time_str) >= 6) {
+        dt.hour = (time_str[0] - '0') * 10 + (time_str[1] - '0');
+        dt.minute = (time_str[2] - '0') * 10 + (time_str[3] - '0');
+        dt.second = (time_str[4] - '0') * 10 + (time_str[5] - '0');
+    }
+
+    // Extrai e converte o dia, mês e ano
+    if (strlen(date_str) >= 6) {
+        dt.day = (date_str[0] - '0') * 10 + (date_str[1] - '0');
+        dt.month = (date_str[2] - '0') * 10 + (date_str[3] - '0');
+        dt.year = 2000 + (date_str[4] - '0') * 10 + (date_str[5] - '0'); // Assume que o ano está no formato YY
+    }
+
+    return dt;
+}
+
 
 void fill_empty_fields_with_zero(char *sentence) {
     int len = strlen(sentence);
@@ -1646,21 +1692,29 @@ void gnss_write_thread(void){
         if (buf2a) {
             blink(4);
             if (buf2a->len > 0) {
-                //printf("length: %u %s\n", buf2a->len, buf2a->data);
-                printf("Dados: %.*s\n",buf2a->len,buf2a->data);
+             //printf("length: %u %s\n", buf2a->len, buf2a->data);
+             printf("Dados: %.*s\n",buf2a->len,buf2a->data);
+             fill_empty_fields_with_zero(buf2a->data);
+             parse_nmea_sentence(buf2a->data, fields, &field_count);
+             // Imprimir os campos separados
+             for (int i = 0; i < field_count; i++) {
+                //printf("Field %d: '%s'\n", i, fields[i]);
+             }
 
-    fill_empty_fields_with_zero(buf2a->data);
+             DateTime dt = extract_date_time(fields[1], fields[9]);
+             printf("%02d-%02d-%04d %02dhs %02dmin %02d sec\n",dt.day,dt.month,dt.year,dt.hour,dt.minute,dt.second);
+             blink(5);
 
-    parse_nmea_sentence(buf2a->data, fields, &field_count);
+              // Extrai e converte coordenadas
+              Coordinates coords = extract_coordinates(fields[3], fields[5]);
 
-    // Imprimir os campos separados
-    for (int i = 0; i < field_count; i++) {
-        printf("Field %d: '%s'\n", i, fields[i]);
-    }
+              // Imprime as coordenadas
+              printf("\n");
+              printf("Lat: %.6f\n", coords.latitude);
+              printf("Lon: %.6f\n", coords.longitude);
 
 
 
-                blink(5);
             }
             k_free(buf2a);
         }
@@ -1856,7 +1910,6 @@ void tx_function(void){
 
 }
 
-
 void tx_function_msg(char *msg){
   struct uart_data_t *tx;
   int pos;
@@ -1904,6 +1957,6 @@ K_THREAD_DEFINE(shoot_minute_save_thread_id, 1024, shoot_minute_save_thread, NUL
 //K_THREAD_DEFINE(adc_thread_id, 1024, adc_thread, NULL, NULL,NULL, 7, 0, 0);
 K_THREAD_DEFINE(lorawan_thread_id, 4096, lorawan_thread, NULL, NULL, NULL, -9, 0, 0);
 K_THREAD_DEFINE(downlink_thread_id, 4096, downlink_thread, NULL, NULL, NULL, 8, 0, 0);
-K_THREAD_DEFINE(gnss_write_thread_id, 8000, gnss_write_thread, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(gnss_write_thread_id, 8000, gnss_write_thread, NULL, NULL, NULL, 8, 0, 0);
 
 #endif
